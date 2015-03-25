@@ -1,0 +1,64 @@
+<?php
+/**
+ * Реализация hook_form_alter()
+ */
+
+function dtbx_formalter_form_alter(&$form, &$form_state, $form_id) {
+  # drupal_set_message($form_id, 'warning');
+  switch ($form_id) {
+	  case 'user_profile_form':
+	    //скрываем это поле от редактирования 
+	    drupal_set_message(t("user_profile_form"), 'status');
+	    break; 
+	  case 'user_register_form': //показать-убрать группу полей при клике на нужный флажок
+	    drupal_set_message(t("user_register"), 'status');
+		$form['#submit'][] = 'dtbx_formalter_submit';
+		break; 
+	}
+}
+ 
+/**
+ * Пользовательская функция валидации форм создания/редактирования нод
+ */
+ 
+function dtbx_formalter_submit($form, &$form_state) {
+  
+  global $user; 
+  
+  $user_uid = $form_state['values']['uid'];
+  $user_name = $form_state['values']['name'];
+  
+  
+  drupal_set_message('user->uid = '.$user_uid, 'status');
+  drupal_set_message('user->name = '.$user_name, 'status');
+  db_query('insert into T_USER (USER_LOGIN, USER_TYPE_ID, UID) values (:USER_LOGIN, :USER_TYPE_ID, :UID)', 
+		   array(':USER_LOGIN' => $user_name, ':USER_TYPE_ID' => 1, ':UID' => $user_uid)
+		  );
+  /*
+  db_set_active('noprefix');
+  
+  $query = db_insert('{t_user}') 
+	->fields(array(
+			  'USER_LOGIN' => $user->name,
+			  'USER_TYPE_ID' => 1,
+			  'UID' => $user->uid)
+			)
+    ->execute();
+	
+  if ($query > 0) {
+    drupal_set_message(t('Data has been successfully sent.'), 'status');
+  }
+  else {
+    drupal_set_message(t("Data hasn't been sent."), 'error');
+  }	
+  
+  db_set_active();
+  */
+}
+
+function dtbx_formalter_validate($form, &$form_state) {
+
+  drupal_set_message(t("Alter"), 'status');
+
+}
+?>
