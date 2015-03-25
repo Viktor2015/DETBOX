@@ -1,0 +1,159 @@
+﻿<?php
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_privateroom_menu() 
+{
+    $items['dtbx_privateroom'] = array(
+        'title' => 'Личные данные',
+        'access callback' => TRUE,
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_privateroom_page'),
+        'type' => MENU_CALLBACK,
+    );
+	return $items;
+}
+
+
+/**
+* Page callback.
+**/
+function dtbx_privateroom_page($form, &$form_state) 
+{
+
+	$surname = "";
+	$firstname = "";
+	$patronname = "";
+	$companyname = "";
+	$juraddress = "";
+	$realaddress = "";
+	$contact = "";
+	$persondata = "Персональные данные: ";
+	
+	
+	
+	global $user;
+	$items = db_query('select * from T_USER where uid = :uid', array(':uid' => $user->uid))->fetchObject();;
+	
+	if(count($items) > 0)
+	{
+		$surname = $items->USER_SURNAME;
+		$firstname = $items->USER_NAME;
+		$patronname = $items->USER_PATRONYMIC;
+		$companyname = $items->COMPANY_NAME;
+		$juraddress = $items->COMPANY_ADDRESS;
+		$realaddress = $items->COMPANY_ACTUAL_ADDRESS;
+		$contact = $items->COMPANY_CONTACT;
+		$persondata .= $items->USER_LOGIN;
+	}
+	
+	$form['access'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($persondata), 
+    '#tree' => TRUE,
+  );
+  
+   
+  
+  $form['access']['surname'] = array(
+    '#type' => 'textfield', 
+	'#title' => t('Фамилия'), 
+    '#default_value' => $surname, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  $form['access']['firstname'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Имя'), 
+    '#default_value' => $firstname, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  $form['access']['patronname'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Отчество'), 
+    '#default_value' => $patronname, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  $form['access']['companyname'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Наименование компании'), 
+    '#default_value' => $companyname, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  $form['access']['juraddress'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Юридический адрес'), 
+    '#default_value' => $juraddress, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  $form['access']['realaddress'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Фактический  адрес'), 
+    '#default_value' => $realaddress, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  $form['access']['contact'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Контактное лицо'), 
+    '#default_value' => $contact, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  
+  
+  $form['access']['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Изменить'), 
+    '#submit' => array('dtbx_privateroom_submit')
+  );
+  
+  return $form;
+}
+
+
+function dtbx_privateroom_submit($form, &$form_state)
+{
+	global $user;
+   
+	db_query('UPDATE T_USER u 
+		      SET u.USER_SURNAME = :USER_SURNAME, 
+				  u.USER_NAME = :USER_NAME, 
+				  u.USER_PATRONYMIC = :USER_PATRONYMIC, 
+				  u.COMPANY_NAME = :COMPANY_NAME, 
+				  u.COMPANY_ADDRESS = :COMPANY_ADDRESS, 
+				  u.COMPANY_ACTUAL_ADDRESS = :COMPANY_ACTUAL_ADDRESS, 
+				  u.COMPANY_CONTACT = :COMPANY_CONTACT 
+              WHERE u.UID = :UID', 
+		   array(':USER_SURNAME' => $form_state['values']['access']['surname'],
+				 ':USER_NAME' => $form_state['values']['access']['firstname'],
+				 ':USER_PATRONYMIC' => $form_state['values']['access']['patronname'],
+				 ':COMPANY_NAME' => $form_state['values']['access']['companyname'],
+				 ':COMPANY_ADDRESS' => $form_state['values']['access']['juraddress'],
+				 ':COMPANY_ACTUAL_ADDRESS' => $form_state['values']['access']['realaddress'],
+				 ':COMPANY_CONTACT' =>  $form_state['values']['access']['contact'],
+				 ':UID' => $user->uid
+		   ));
+
+return $form;
+}
+
+
+
+
+
+
+
+?>
