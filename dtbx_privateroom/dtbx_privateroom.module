@@ -1,24 +1,74 @@
 ﻿<?php
+
+/**
+ * init().
+ */
+
+  
+function dtbx_privateroom_init() {
+
+static $already_added = FALSE;
+
+  if ($already_added) {
+    return; // Don't add the JavaScript and CSS multiple times.
+  }	
+  // Include the CTools tools that we need.
+  ctools_include('ajax');
+  ctools_include('modal');
+
+  // Add CTools' javascript to the page.
+  ctools_modal_add_js();
+  
+  $path = drupal_get_path('module', 'dtbx_privateroom');
+  drupal_add_js($path . '/js/dtbx_privateroom.js', array('weight' => -20));
+  
+  $already_added = TRUE;
+}
+
 /**
  * Implements hook_menu().
  */
  
 function dtbx_privateroom_menu() 
 {
+
+
     $items['dtbx_privateroom'] = array(
         'title' => 'Личные данные',
-        'access callback' => TRUE,
-        'page callback' => 'drupal_get_form',
-		'page arguments' => array('dtbx_privateroom_page'),
+        'access callback' => 'dtbx_privateroom_access',
+        'page callback' => 'dtbx_privateroom_callback',
+		'page arguments' => array(1),		
         'type' => MENU_CALLBACK,
     );
 	return $items;
 }
-
-
 /**
 * Page callback.
 **/
+
+function dtbx_privateroom_callback($ajax) 
+{
+  if ($ajax) {
+    
+    $form_state = array(
+      'ajax' => TRUE,
+      'title' => t('Личный кабинет')
+    );
+
+    $output = ctools_modal_form_wrapper('dtbx_privateroom_page', $form_state);
+
+    if (!empty($form_state['ajax_commands'])) {
+      $output = $form_state['ajax_commands'];
+    }
+	
+    print ajax_render($output);
+  }
+  else {
+	drupal_set_message('sl_3', 'status');  
+    return drupal_get_form('dtbx_privateroom_page');
+  }	
+}
+
 function dtbx_privateroom_page($form, &$form_state) 
 {
 
@@ -29,7 +79,9 @@ function dtbx_privateroom_page($form, &$form_state)
 	$juraddress = "";
 	$realaddress = "";
 	$contact = "";
-	$persondata = "Персональные данные: ";
+	$persondata = "Персональные данные";
+	$change_psw = "Смена пароля";
+	$load_pl = "Разместить прайс-лист";
 	
 	
 	
@@ -45,16 +97,22 @@ function dtbx_privateroom_page($form, &$form_state)
 		$juraddress = $items->COMPANY_ADDRESS;
 		$realaddress = $items->COMPANY_ACTUAL_ADDRESS;
 		$contact = $items->COMPANY_CONTACT;
-		$persondata .= $items->USER_LOGIN;
+		//$persondata .= $items->USER_LOGIN;
 	}
-	
-	$form['access'] = array(
+  
+  $form['#attributes'] = array('class' => 'ctools-use-modal');
+  
+  $form['vertical_tabs'] = array(
+    '#type' => 'vertical_tabs',
+	'#title' => $items->USER_LOGIN, 
+  ); 
+
+  $form['access'] = array(
     '#type' => 'fieldset', 
     '#title' => t($persondata), 
     '#tree' => TRUE,
-  );
-  
-   
+	'#group' => 'vertical_tabs'
+  );  
   
   $form['access']['surname'] = array(
     '#type' => 'textfield', 
@@ -111,18 +169,40 @@ function dtbx_privateroom_page($form, &$form_state)
     '#size' => 60, 
     '#maxlength' => 128
   );
-  
-  
-  
+
   $form['access']['submit'] = array(
     '#type' => 'submit', 
     '#value' => t('Изменить'), 
     '#submit' => array('dtbx_privateroom_submit')
   );
+
+  $form['change_psw'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($change_psw), 
+    '#tree' => TRUE,
+	'#group' => 'vertical_tabs'	
+  );  
+  
+  $form['load_pl'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($load_pl), 
+    '#tree' => TRUE,
+	'#group' => 'vertical_tabs'	
+  );  
   
   return $form;
 }
 
+
+/**
+* Page access.
+**/
+
+function dtbx_privateroom_access() {
+  global $user;
+  return ($user->uid > 0);
+
+}
 
 function dtbx_privateroom_submit($form, &$form_state)
 {
@@ -149,11 +229,6 @@ function dtbx_privateroom_submit($form, &$form_state)
 
 return $form;
 }
-
-
-
-
-
 
 
 ?>
