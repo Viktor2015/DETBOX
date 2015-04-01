@@ -49,10 +49,10 @@ function dtbx_privateroom_menu()
 function dtbx_privateroom_callback($ajax) 
 {
   if ($ajax) {
-    global $user;
+    
     $form_state = array(
       'ajax' => TRUE,
-      'title' => t('Личный кабинет ') . $user -> name
+      'title' => t('Личный кабинет')
     );
 
     $output = ctools_modal_form_wrapper('dtbx_privateroom_page', $form_state);
@@ -79,9 +79,9 @@ function dtbx_privateroom_page($form, &$form_state)
 	$juraddress = "";
 	$realaddress = "";
 	$contact = "";
-	$profile = "Профиль";
+	$change_profile = "Профиль";
 	$persondata = "Персональные данные";	
-	$pl = "Прайс-лист";
+	$load_pl = "Разместить прайс-лист";
 	
 	
 	
@@ -107,11 +107,18 @@ function dtbx_privateroom_page($form, &$form_state)
 	'#title' => $items->USER_LOGIN, 
   ); 
 //
-  $form['profile'] = array(
+  $form['change_psw'] = array(
     '#type' => 'fieldset', 
-    '#title' => t($profile), 
+    '#title' => t($change_profile), 
     '#tree' => TRUE,
 	'#group' => 'vertical_tabs'	
+  ); 
+
+  
+//
+  $form_user['vertical_tabs'] = array(
+    '#type' => 'vertical_tabs',
+	'#title' => $items->USER_LOGIN, 
   ); 
 
   module_load_include('pages.inc', 'user');
@@ -119,17 +126,18 @@ function dtbx_privateroom_page($form, &$form_state)
   $form_user['account']['#group'] = 'vertical_tabs';
   $form_user['locale']['#group'] = 'vertical_tabs';
   $form_user['picture']['#group'] = 'vertical_tabs';    
-  
-  $form['profile']['account'] = $form_user['account'];
-  $form['profile']['account']['#group'] = 'vertical_tabs';
-  
-  $form['profile']['account']['submit'] = array(
-    '#type' => 'submit', 
-    '#value' => t('Изменить'), 
-	'#validate' => 'user_profile_form_validate',
-    '#submit' => array('user_profile_form_submit')
-  );  
-  
+/*
+  foreach ($form_user as &$form_element) {
+	if ($form_element == 'account') 
+	{  
+	  array_push ($form_element, array('#group' => 'load_pl'));
+//    drupal_set_message($form_element, 'status');
+//	  array_push ($form_element, array('#group' => 'load_pl'));
+//	  $form['change_psw'][$form_element] = $form_element;
+	}  
+  }*/
+$form = $form_user;
+/*
   
   $form['access'] = array(
     '#type' => 'fieldset', 
@@ -201,125 +209,14 @@ function dtbx_privateroom_page($form, &$form_state)
   );
 
 //
-  $form['pl'] = array(
+  $form['load_pl'] = array(
     '#type' => 'fieldset', 
-    '#title' => t($pl), 
+    '#title' => t($load_pl), 
     '#tree' => TRUE,
 	'#group' => 'vertical_tabs'	
-  ); 
-/*
-  
-  $form['pl']['table'] = array(
-    '#tree' => TRUE,
-    '#theme' => 'tabular_form', // функция, с помощью которой мы будем придавать форме табличный вид
-  );
- 
-  $form['pl']['table']['header'] = array(
-    '#type' => 'value',
-    '#value' => array('Размещен', 'Дата прайс-листа', 'Примечание'),
-  );
-*/ 
-  $records = db_query("select plh.PRICE_LIST_HEAD_ID, 
-							  plh.IS_POSTED, 
-							  DATE_FORMAT(plh.PRICE_LIST_HEAD_DATE, '%d.%m.%Y') as PRICE_LIST_HEAD_DATE, 
-							  plh.PRICE_LIST_HEAD_COMMENT, 
-							  CAST(plh.PRICE_LIST_HEAD_TERMS as  CHAR(10000) CHARACTER SET utf8) as PRICE_LIST_HEAD_TERMS
-			  		   from t_price_list_head plh, t_user u 
-					   where plh.user_id = u.user_id and u.uid = :uid", array(':uid' => $user->uid));
-  $table = '<table> <tr>
-               <th>Размещен</th>
-			   <th>Номер</th>
-			   <th>Дата</th>
-			   <th>Примечание</th>
-			   <th>Удалить</th>
-             </tr>';
-			 
-  foreach ($records as $rec) {
-	 $table .= '<tr>';
-	 
-	 $table .= '<td rowspan="2" width=5%>';
-	 if ($rec->IS_POSTED == 1) {
-       $table .= '<input type="checkbox" checked="checked"/>';		 
-	 } else {
-	   $table .= '<input type="checkbox"/>';
-	 }	 
-	 $table .= '</td>';
-	 
-	 $table .= '<td rowspan="2" width=10%>' . $rec->PRICE_LIST_HEAD_ID . '</td>';
-	 $table .= '<td rowspan="2" width=10%>' . $rec->PRICE_LIST_HEAD_DATE . '</td>';
-	 $table .= '<td width=70%>' . $rec->PRICE_LIST_HEAD_COMMENT . '</td>';
-	 $table .= '<td rowspan="2" width=5%>' . '<a href="">del</a>' . '</td>';
-	 $table .= '</tr>';
-	 $table .= '<tr>';
-	 
-	 $table .= '<td width=70%><textarea>' . $rec->PRICE_LIST_HEAD_TERMS . '</textarea></td>';
-	 
-	 $table .= '</tr>';
-  }			 
-  
-  $table .= '</table>';
-   
-  $form['pl']['table'] = array(
-    '#markup' => $table
-  );
-  
-  $form['pl']['add_pl'] = array(
-    '#type' => 'button', 
-    '#value' => t('Загрузить')
-  );
-  
-  
-  /*
-  foreach ($nodes as $node) {
-    $form['pl']['table']['data'][$node->PRICE_LIST_HEAD_ID]['IS_POSTED'] = array(
-      '#type' => 'checkbox',
-      '#default_value' => $node->IS_POSTED,
-    );
- 
-    $form['pl']['table']['data'][$node->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_DATE'] = array(
-      '#markup' => '<a href="">' . $node->PRICE_LIST_HEAD_DATE . '</a>'
-    );
-
-    $form['pl']['table']['data'][$node->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_COMMENT'] = array(
-      '#type' => 'textfield',
-      '#default_value' => $node->PRICE_LIST_HEAD_COMMENT,
-      '#required' => TRUE,
-    );	
-  }
- 
-  $form['pl']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => 'Сохранить',
-  );
+  );  
   */
-//  
   return $form;
-}
-
-
-function dtbx_privateroom_theme() {
-  // Регистрируем ф-ю темизации tabular_form, которая будет собирать форму в таблицу
-  return array(
-    'tabular_form' => array(
-      'render element' => 'form',
-    ),
-  );
-}
-
-function theme_tabular_form($vars) {
-  $form = $vars['form'];
-  $rows = array();
- 
-  foreach (element_children($form['data']) as $key) {
-    foreach (element_children($form['data'][$key]) as $name) {
-      $rows[$key][] = drupal_render($form['data'][$key][$name]);
-    }
-  }
- 
-  return theme('table', array(
-    'header' => $form['header']['#value'],
-    'rows' => $rows,
-  ));
 }
 
 

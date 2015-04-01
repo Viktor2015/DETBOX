@@ -1,0 +1,215 @@
+﻿<?php
+
+
+
+
+function dtbx_searchform_init() {
+
+ static $already_added = FALSE;
+
+  drupal_set_message('+', 'status');
+  
+  if ($already_added) {
+    return; // Don't add the JavaScript and CSS multiple times.
+  }	
+		
+ 
+  drupal_add_js($GLOBALS['base_url'] . '/jquery-easyui/jquery.min.js', array('weight' => -20));
+  drupal_add_js($GLOBALS['base_url'] . '/jquery-easyui/jquery.easyui.min.js', array('weight' => -19));
+  drupal_add_js($GLOBALS['base_url'] . '/code.js', array('weight' => -18));
+  
+  
+  $already_added = TRUE;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_searchform_menu() 
+{
+    $items['dtbx_searchform'] = array(
+        'title' => 'Поиск',
+        'access callback' => TRUE,
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_searchform_page'),
+        'type' => MENU_CALLBACK,
+    );
+	return $items;
+}
+
+
+/**
+* Page callback.
+**/
+function dtbx_searchform_page($form, &$form_state) 
+{
+	$searchtypes = array('Артикул', 'Наименование', 'Штрихкод');
+	
+	$form['search'] = array(
+		'#type' => 'fieldset', 
+		'#attributes' => array('class' => array('container-inline')), 
+	);
+	
+	$form['search']['searchtype'] = array(
+		'#type' => 'select', 
+		'#options' => $searchtypes
+	);
+
+	
+	$form['search']['searchvalue'] = array(
+		'#type' => 'textfield', 
+		'#size' => 60, 
+		'#maxlength' => 128
+	);
+	
+	
+	$form['search']['submit'] = array(
+		'#type' => 'submit', 
+		'#value' => t('Искать'), 
+		'#submit' => array('dtbx_searchform_submit')
+	);
+	
+	$form['search']['submit']['#ajax'] = array('callback' => 'add_to_form_submit_handler',
+			'wrapper' => 'form-ajax-node-content',
+			'method' => 'replace',
+			'effect' => 'fade');
+			
+       $form['markup'] = array(
+            '#prefix' => '<div id = "form-ajax-node-content">',
+            '#suffix' => '</div>',
+            '#markup' => '<div id="searchresult">hi</div>',
+            '#weight' => 2000, //set weight to show markup at the bottom of the form
+       );
+	   /*
+	$form['#attached']['js'] = array(
+		$GLOBALS['base_url'] . '/jquery-easyui/jquery.min.js',
+		$GLOBALS['base_url'] . '/jquery-easyui/jquery.easyui.min.js',
+		$GLOBALS['base_url'] . '/code.js'
+	  );*/
+  
+	/*$form['#attached']['css'] = array(
+		$GLOBALS['base_url'] . '/jquery-easyui/themes/default/easyui.css',
+		$GLOBALS['base_url'] . '/jquery-easyui/themes/icon.css',
+		
+	);
+	
+	drupal_add_css($GLOBALS['base_url'] . '/myown.css');*/
+	
+	return $form;
+}
+
+function add_to_form_submit_handler($form, &$form_state) {
+
+	$numels = count($form_state['values']['searchvalue']);
+	
+	$easyui_path = $GLOBALS['base_url'] . '/jquery-easyui/themes/default/easyui.css';
+	$myown_path = $GLOBALS['base_url'] . '/myown.css';
+	
+	$oldoutput = '<table id="dg" class="easyui-datagrid">
+					<thead>
+						<tr>
+							<th data-options="field:\'code\'">Code</th>
+							<th data-options="field:\'name\'">Name</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td>' . $form_state['values']['searchtype'] . '</td>
+							<td>' .  $form_state['values']['searchvalue'] . '</td>
+						</tr>
+					</tbody>
+				</table>';
+	
+	
+	$output = '	<link rel="stylesheet" type="text/css" href="' . $easyui_path . '">
+				<link rel="stylesheet" type="text/css" href="' . $myown_path . '">
+				
+				<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/jquery-easyui/jquery.min.js"></script>
+				<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/jquery-easyui/jquery.easyui.min.js"></script>
+				<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/code.js"></script>
+				
+				<div class="myown">Hello11</div><br>
+				<table id="dg"></table>
+				<script type="text/javascript" >setTimeout(\'renewtable()\', 1000)</script>';
+	
+	
+   //$output = '<table border=1><tr><td>' . $form_state['values']['searchtype'] . "</td><td>" .  $form_state['values']['searchvalue'] . "</td></tr></table>";
+   $form['markup'] = array(
+            '#prefix' => '<div id = "form-ajax-node-content">',
+            '#suffix' => '</div>',
+            '#markup' => $output,
+            '#weight' => 2,
+       );
+    return $form['markup'];
+}
+
+/*
+function dtbx_searchform_form($form, &$form_state) {
+
+    if(!empty($form_state['temporary'])) {
+        $form['results'] = array(
+            '#type'     => 'item',
+            '#markup'   => $form_state['temporary'], 
+        );
+    }
+
+    return $form;
+}*/
+
+
+
+
+function dtbx_searchform_submit($form, &$form_state)
+{
+	global $user;
+	
+	
+   
+	/*db_query('UPDATE T_USER u 
+		      SET u.USER_SURNAME = :USER_SURNAME, 
+				  u.USER_NAME = :USER_NAME, 
+				  u.USER_PATRONYMIC = :USER_PATRONYMIC, 
+				  u.COMPANY_NAME = :COMPANY_NAME, 
+				  u.COMPANY_ADDRESS = :COMPANY_ADDRESS, 
+				  u.COMPANY_ACTUAL_ADDRESS = :COMPANY_ACTUAL_ADDRESS, 
+				  u.COMPANY_CONTACT = :COMPANY_CONTACT 
+              WHERE u.UID = :UID', 
+		   array(':USER_SURNAME' => $form_state['values']['access']['surname'],
+				 ':USER_NAME' => $form_state['values']['access']['firstname'],
+				 ':USER_PATRONYMIC' => $form_state['values']['access']['patronname'],
+				 ':COMPANY_NAME' => $form_state['values']['access']['companyname'],
+				 ':COMPANY_ADDRESS' => $form_state['values']['access']['juraddress'],
+				 ':COMPANY_ACTUAL_ADDRESS' => $form_state['values']['access']['realaddress'],
+				 ':COMPANY_CONTACT' =>  $form_state['values']['access']['contact'],
+				 ':UID' => $user->uid
+		   ));*/
+		   
+		   
+	
+		
+
+return $form;
+}
+
+
+
+
+
+
+
+?>
