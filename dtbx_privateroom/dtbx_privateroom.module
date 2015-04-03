@@ -42,6 +42,21 @@ function dtbx_privateroom_menu()
     );
 	return $items;
 }
+
+/**
+ * Implements hook_theme().
+ */
+  
+function dtbx_privateroom_theme() {
+  return array(
+    'dtbx_privateroom_table' => array(
+      'render element' => 'form',
+    ),
+  );
+}	
+
+ 
+ 
 /**
 * Page callback.
 **/
@@ -64,10 +79,49 @@ function dtbx_privateroom_callback($ajax)
     print ajax_render($output);
   }
   else {
-	drupal_set_message('sl_3', 'status');  
     return drupal_get_form('dtbx_privateroom_page');
   }	
 }
+
+function dtbx_privateroom_form_process_password_confirm($element) {
+  global $user;
+  
+  $element['pass1']['#title'] = t('Новый пароль'); 
+  $element['pass2']['#title'] = t('Подтвердите новый пароль');
+
+
+  $js_settings = array(
+    'password' => array(
+      'strengthTitle' => t('Password strength:'),
+      'hasWeaknesses' => t('To make your password stronger:'),
+      'tooShort' => t('Make it at least 6 characters'),
+      'addLowerCase' => t('Add lowercase letters'),
+      'addUpperCase' => t('Add uppercase letters'),
+      'addNumbers' => t('Add numbers'),
+      'addPunctuation' => t('Add punctuation'),
+      'sameAsUsername' => t('Make it different from your username'),
+      'confirmSuccess' => t('yes'),
+      'confirmFailure' => t('no'),
+      'weak' => t('Weak'),
+      'fair' => t('Fair'),
+      'good' => t('Good'),
+      'strong' => t('Strong'),
+      'confirmTitle' => t('Passwords match:'),
+      'username' => (isset($user->name) ? $user->name : ''),
+    ),
+  );
+
+  $element['#attached']['js'][] = drupal_get_path('module', 'user') . '/user.js';
+  // Ensure settings are only added once per page.
+  static $already_added = FALSE;
+  if (!$already_added) {
+    $already_added = TRUE;
+    $element['#attached']['js'][] = array('data' => $js_settings, 'type' => 'setting');
+  }
+
+  return $element;
+}
+
 
 function dtbx_privateroom_page($form, &$form_state) 
 {
@@ -86,51 +140,79 @@ function dtbx_privateroom_page($form, &$form_state)
 	
 	
 	global $user;
-	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();;
+	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
 	
 	if(count($items) > 0)
 	{
-		$surname = $items->USER_SURNAME;
-		$firstname = $items->USER_NAME;
-		$patronname = $items->USER_PATRONYMIC;
-		$companyname = $items->COMPANY_NAME;
-		$juraddress = $items->COMPANY_ADDRESS;
-		$realaddress = $items->COMPANY_ACTUAL_ADDRESS;
-		$contact = $items->COMPANY_CONTACT;
+		$surname = $items->user_surname;
+		$firstname = $items->user_name;
+		$patronname = $items->user_patronymic;
+		$companyname = $items->company_name;
+		$juraddress = $items->company_address;
+		$realaddress = $items->company_actual_address;
+		$contact = $items->company_contact;
 		//$persondata .= $items->USER_LOGIN;
 	}
   
-  $form['#attributes'] = array('class' => 'ctools-use-modal');
-  
+  //$form['#attributes'] = array('class' => 'ctools-use-modal');
+ 
   $form['vertical_tabs'] = array(
     '#type' => 'vertical_tabs',
-	'#title' => $items->USER_LOGIN, 
+	'#title' => $items->user_login, 
+	//'#default_tab' => 'edit-pl'
   ); 
 //
+  module_load_include('pages.inc', 'user');
+  $form_user = drupal_get_form('user_profile_form', $user, 'account');
+  /*
+  $form_user['account']['#group'] = 'vertical_tabs';
+  $form_user['locale']['#group'] = 'vertical_tabs';
+  $form_user['picture']['#group'] = 'vertical_tabs';    
+  */ 
+
   $form['profile'] = array(
     '#type' => 'fieldset', 
     '#title' => t($profile), 
     '#tree' => TRUE,
-	'#group' => 'vertical_tabs'	
-  ); 
+	'#group' => 'vertical_tabs',
+	'#validate' => array('dtbx_privateroom_profile_validate')
+  );
+  
+  
+  $form['profile']['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Username'),
+    '#size' => 60,
+    '#maxlength' => USERNAME_MAX_LENGTH,
+	'#description' => t('Spaces are allowed; punctuation is not allowed except for periods, hyphens, apostrophes, and underscores.'),
+	'#default_value' => $user->name,
+    '#required' => TRUE
+  );
+  
+  $form['profile']['mail'] = array(
+    '#type' => 'textfield',
+    '#title' => t('E-mail address'),
+    '#maxlength' => EMAIL_MAX_LENGTH,
+    '#description' => t('A valid e-mail address. All e-mails from the system will be sent to this address. The e-mail address is not made public and will only be used if you wish to receive a new password or wish to receive certain news or notifications by e-mail.'),
+    '#required' => TRUE,
+    '#default_value' => $user->mail,  
+  );
 
-  module_load_include('pages.inc', 'user');
-  $form_user = drupal_get_form('user_profile_form',$user, 'account');
-  $form_user['account']['#group'] = 'vertical_tabs';
-  $form_user['locale']['#group'] = 'vertical_tabs';
-  $form_user['picture']['#group'] = 'vertical_tabs';    
+  $form['profile']['current_pass'] = array(
+    '#type' => 'password',
+    '#size' => 25,
+    '#title' => t('Current password'),	
+  );
   
-  $form['profile']['account'] = $form_user['account'];
-  $form['profile']['account']['#group'] = 'vertical_tabs';
+  $form['profile']['pass'] = array(
+    '#type' => 'password_confirm',
+    '#size' => 25,
+	'#process' => array('form_process_password_confirm', 'dtbx_privateroom_form_process_password_confirm'),
+    '#description' => t('To change the current user password, enter the new password in both fields.'),
+  );   
   
-  $form['profile']['account']['submit'] = array(
-    '#type' => 'submit', 
-    '#value' => t('Изменить'), 
-	'#validate' => 'user_profile_form_validate',
-    '#submit' => array('user_profile_form_submit')
-  );  
-  
-  
+
+//   
   $form['access'] = array(
     '#type' => 'fieldset', 
     '#title' => t($persondata), 
@@ -194,38 +276,63 @@ function dtbx_privateroom_page($form, &$form_state)
     '#maxlength' => 128
   );
 
-  $form['access']['submit'] = array(
-    '#type' => 'submit', 
-    '#value' => t('Изменить'), 
-    '#submit' => array('dtbx_privateroom_submit')
-  );
-
 //
+
+
   $form['pl'] = array(
     '#type' => 'fieldset', 
     '#title' => t($pl), 
     '#tree' => TRUE,
 	'#group' => 'vertical_tabs'	
   ); 
-/*
-  
+
   $form['pl']['table'] = array(
     '#tree' => TRUE,
-    '#theme' => 'tabular_form', // функция, с помощью которой мы будем придавать форме табличный вид
+    '#theme' => 'dtbx_privateroom_table', // функция, с помощью которой мы будем придавать форме табличный вид
   );
  
   $form['pl']['table']['header'] = array(
     '#type' => 'value',
-    '#value' => array('Размещен', 'Дата прайс-листа', 'Примечание'),
+    '#value' => array('Номер', 'Размещен', 'Дата', 'Примечание', 'Инфо'),
   );
-*/ 
-  $records = db_query("select plh.PRICE_LIST_HEAD_ID, 
-							  plh.IS_POSTED, 
-							  DATE_FORMAT(plh.PRICE_LIST_HEAD_DATE, '%d.%m.%Y') as PRICE_LIST_HEAD_DATE, 
-							  plh.PRICE_LIST_HEAD_COMMENT, 
-							  CAST(plh.PRICE_LIST_HEAD_TERMS as  CHAR(10000) CHARACTER SET utf8) as PRICE_LIST_HEAD_TERMS
+
+
+  
+  $records = db_query("select plh.price_list_head_id, 
+							  plh.is_posted, 
+							  date_format(plh.price_list_head_date, '%d.%m.%y') as price_list_head_date, 
+							  plh.price_list_head_comment, 
+							  plh.price_list_head_terms as price_list_head_terms
 			  		   from t_price_list_head plh, t_user u 
 					   where plh.user_id = u.user_id and u.uid = :uid", array(':uid' => $user->uid));
+ 
+  foreach ($records as $rec) {
+    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_ID'] = array(
+      '#markup' => $rec->PRICE_LIST_HEAD_ID,
+    );
+ 
+    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['IS_POSTED'] = array(
+      '#type' => 'checkbox',
+      '#default_value' => $rec->IS_POSTED
+    );
+
+    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_DATE'] = array(
+      '#markup' => $rec->PRICE_LIST_HEAD_DATE,
+    );
+
+    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_COMMENT'] = array(
+      '#markup' => $rec->PRICE_LIST_HEAD_COMMENT,
+    );
+
+    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_TERMS'] = array(
+	  '#type' => 'textarea',
+      '#default_value' => $rec->PRICE_LIST_HEAD_TERMS,
+      '#required' => TRUE
+    );
+  }
+ 
+  
+/*					   
   $table = '<table> <tr>
                <th>Размещен</th>
 			   <th>Номер</th>
@@ -233,9 +340,10 @@ function dtbx_privateroom_page($form, &$form_state)
 			   <th>Примечание</th>
 			   <th>Удалить</th>
              </tr>';
-			 
+  
   foreach ($records as $rec) {
-	 $table .= '<tr>';
+ 
+	 $table .= '<tr id="' . $rec -> PRICE_LIST_HEAD_ID . '">';
 	 
 	 $table .= '<td rowspan="2" width=5%>';
 	 if ($rec->IS_POSTED == 1) {
@@ -252,7 +360,7 @@ function dtbx_privateroom_page($form, &$form_state)
 	 $table .= '</tr>';
 	 $table .= '<tr>';
 	 
-	 $table .= '<td width=70%><textarea>' . $rec->PRICE_LIST_HEAD_TERMS . '</textarea></td>';
+	 $table .= '<td width=70%><textarea id="' . $rec -> PRICE_LIST_HEAD_ID . '" name="PRICE_LIST_HEAD_TERMS">' . ($rec->PRICE_LIST_HEAD_TERMS) . '</textarea></td>';
 	 
 	 $table .= '</tr>';
   }			 
@@ -267,46 +375,22 @@ function dtbx_privateroom_page($form, &$form_state)
     '#type' => 'button', 
     '#value' => t('Загрузить')
   );
-  
-  
-  /*
-  foreach ($nodes as $node) {
-    $form['pl']['table']['data'][$node->PRICE_LIST_HEAD_ID]['IS_POSTED'] = array(
-      '#type' => 'checkbox',
-      '#default_value' => $node->IS_POSTED,
-    );
- 
-    $form['pl']['table']['data'][$node->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_DATE'] = array(
-      '#markup' => '<a href="">' . $node->PRICE_LIST_HEAD_DATE . '</a>'
-    );
+ */
 
-    $form['pl']['table']['data'][$node->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_COMMENT'] = array(
-      '#type' => 'textfield',
-      '#default_value' => $node->PRICE_LIST_HEAD_COMMENT,
-      '#required' => TRUE,
-    );	
-  }
- 
-  $form['pl']['submit'] = array(
-    '#type' => 'submit',
-    '#value' => 'Сохранить',
+//
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Сохранить')
   );
-  */
-//  
+ 
+ $form['#validate'][] = 'dtbx_privateroom_profile_validate';
+ $form['#submit'][] = 'dtbx_privateroom_submit';
+ 
+ 
   return $form;
 }
 
-
-function dtbx_privateroom_theme() {
-  // Регистрируем ф-ю темизации tabular_form, которая будет собирать форму в таблицу
-  return array(
-    'tabular_form' => array(
-      'render element' => 'form',
-    ),
-  );
-}
-
-function theme_tabular_form($vars) {
+function theme_dtbx_privateroom_table($vars) {
   $form = $vars['form'];
   $rows = array();
  
@@ -322,7 +406,6 @@ function theme_tabular_form($vars) {
   ));
 }
 
-
 /**
 * Page access.
 **/
@@ -333,30 +416,107 @@ function dtbx_privateroom_access() {
 
 }
 
-function dtbx_privateroom_submit($form, &$form_state)
-{
+function dtbx_privateroom_profile_validate($form, &$form_state) {
 	global $user;
-   
-	db_query('UPDATE t_user u 
-		      SET u.USER_SURNAME = :USER_SURNAME, 
-				  u.USER_NAME = :USER_NAME, 
-				  u.USER_PATRONYMIC = :USER_PATRONYMIC, 
-				  u.COMPANY_NAME = :COMPANY_NAME, 
-				  u.COMPANY_ADDRESS = :COMPANY_ADDRESS, 
-				  u.COMPANY_ACTUAL_ADDRESS = :COMPANY_ACTUAL_ADDRESS, 
-				  u.COMPANY_CONTACT = :COMPANY_CONTACT 
-              WHERE u.UID = :UID', 
-		   array(':USER_SURNAME' => $form_state['values']['access']['surname'],
-				 ':USER_NAME' => $form_state['values']['access']['firstname'],
-				 ':USER_PATRONYMIC' => $form_state['values']['access']['patronname'],
-				 ':COMPANY_NAME' => $form_state['values']['access']['companyname'],
-				 ':COMPANY_ADDRESS' => $form_state['values']['access']['juraddress'],
-				 ':COMPANY_ACTUAL_ADDRESS' => $form_state['values']['access']['realaddress'],
-				 ':COMPANY_CONTACT' =>  $form_state['values']['access']['contact'],
-				 ':UID' => $user->uid
-		   ));
+ //Профиль   
+	//drupal_set_message('validate', 'status');
+	
+	//drupal_set_message($form_state['values']['profile']['name'], 'status');
+	
+	$account = $user;
+    // Validate new or changing username.
+    if (isset($form_state['values']['profile']['name'])) {
+      if ($error = user_validate_name($form_state['values']['profile']['name'])) {
+        form_set_error('profile][name', $error);
+      }
+      elseif ((bool) db_select('users')->fields('users', array('uid'))->condition('uid', $account->uid, '<>')->condition('name', db_like($form_state['values']['profile']['name']), 'LIKE')->range(0, 1)->execute()->fetchField()) {
+        form_set_error('profile][name', t('The name %name is already taken.', array('%name' => $form_state['values']['profile']['name'])));
+      }
+    }
 
-return $form;
+    // Trim whitespace from mail, to prevent confusing 'e-mail not valid'
+    // warnings often caused by cutting and pasting.
+    $mail = trim($form_state['values']['profile']['mail']);
+    form_set_value($form['profile']['mail'], $mail, $form_state);
+
+    // Validate the e-mail address, and check if it is taken by an existing user.
+    if ($error = user_validate_mail($form_state['values']['profile']['mail'])) {
+      form_set_error('profile][mail', $error);
+    }
+    elseif ((bool) db_select('users')->fields('users', array('uid'))->condition('uid', $account->uid, '<>')->condition('mail', db_like($form_state['values']['profile']['mail']), 'LIKE')->range(0, 1)->execute()->fetchField()) {
+      // Format error message dependent on whether the user is logged in or not.
+      if ($GLOBALS['user']->uid) {
+        form_set_error('mail', t('The e-mail address %email is already taken.', array('%email' => $form_state['values']['profile']['mail'])));
+      }
+      else {
+        form_set_error('mail', t('The e-mail address %email is already registered. <a href="@password">Have you forgotten your password?</a>', array('%email' => $form_state['values']['profile']['mail'], '@password' => url('user/password'))));
+      }
+    }
+  //
+  //  
+}
+
+function dtbx_privateroom_submit($form, &$form_state) {
+  global $user;
+
+ //Профиль
+  $account = clone $user;
+  
+  $edit = array(
+    'name' => $form_state['values']['profile']['name'],
+    'pass' => $form_state['values']['profile']['pass'],
+    'mail' => $form_state['values']['profile']['mail']
+  );
+  
+  user_save($account, $edit, 'account');
+  
+  
+
+  
+  //Персональные данные	
+   
+	db_query('update t_user u 
+		      set u.user_surname = :user_surname, 
+				  u.user_name = :user_name, 
+				  u.user_patronymic = :user_patronymic, 
+				  u.company_name = :company_name, 
+				  u.company_address = :company_address, 
+				  u.company_actual_address = :company_actual_address, 
+				  u.company_contact = :company_contact 
+              where u.uid = :uid', 
+		   array(':user_surname' => $form_state['values']['access']['surname'],
+				 ':user_name' => $form_state['values']['access']['firstname'],
+				 ':user_patronymic' => $form_state['values']['access']['patronname'],
+				 ':company_name' => $form_state['values']['access']['companyname'],
+				 ':company_address' => $form_state['values']['access']['juraddress'],
+				 ':company_actual_address' => $form_state['values']['access']['realaddress'],
+				 ':company_contact' =>  $form_state['values']['access']['contact'],
+				 ':uid' => $user->uid
+		   ));
+		   /*
+  //Прайс-лист
+  foreach (element_children($form_state['values']['pl']['table']['data']) as $key) {
+	$f_key = $key;  
+    foreach (element_children($form_state['values']['pl']['table']['data'][$key]) as $name) {
+	  $f_name = $name;
+	  $f_values = $form_state['values']['pl']['table']['data'][$key][$name];
+      //drupal_set_message($f_key . ' ' . $f_name . ' '. $f_values, 'status');
+      /*drupal_set_message('update t_price_list_head plh
+				 set plh.' . $f_name . ' = \'' . $f_values . '\'
+			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key, 'status');*/
+	  
+/*	  
+	  db_query('update t_price_list_head plh
+				 set plh.' . $f_name . ' = \'' . $f_values . '\'
+			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key);
+			   
+    }
+  }
+  */
+  drupal_set_message(t('The changes have been saved.'));
+  $form_state['rebuild'] = true;
+  cache_clear_all();
+  return $form;
 }
 
 
