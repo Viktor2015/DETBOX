@@ -307,27 +307,27 @@ function dtbx_privateroom_page($form, &$form_state)
 					   where plh.user_id = u.user_id and u.uid = :uid", array(':uid' => $user->uid));
  
   foreach ($records as $rec) {
-    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_ID'] = array(
-      '#markup' => $rec->PRICE_LIST_HEAD_ID,
+    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_id'] = array(
+      '#markup' => $rec->price_list_head_id,
     );
  
-    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['IS_POSTED'] = array(
+    $form['pl']['table']['data'][$rec->price_list_head_id]['is_posted'] = array(
       '#type' => 'checkbox',
-      '#default_value' => $rec->IS_POSTED
+      '#default_value' => $rec->is_posted
     );
 
-    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_DATE'] = array(
-      '#markup' => $rec->PRICE_LIST_HEAD_DATE,
+    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_date'] = array(
+      '#markup' => $rec->price_list_head_date,
     );
 
-    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_COMMENT'] = array(
-      '#markup' => $rec->PRICE_LIST_HEAD_COMMENT,
+    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_comment'] = array(
+      '#markup' => $rec->price_list_head_comment,
     );
 
-    $form['pl']['table']['data'][$rec->PRICE_LIST_HEAD_ID]['PRICE_LIST_HEAD_TERMS'] = array(
+    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_terms'] = array(
 	  '#type' => 'textarea',
-      '#default_value' => $rec->PRICE_LIST_HEAD_TERMS,
-      '#required' => TRUE
+      '#default_value' => $rec->price_list_head_terms,
+      '#required' => true
     );
   }
  
@@ -493,7 +493,7 @@ function dtbx_privateroom_submit($form, &$form_state) {
 				 ':company_contact' =>  $form_state['values']['access']['contact'],
 				 ':uid' => $user->uid
 		   ));
-		   /*
+		   
   //Прайс-лист
   foreach (element_children($form_state['values']['pl']['table']['data']) as $key) {
 	$f_key = $key;  
@@ -505,14 +505,14 @@ function dtbx_privateroom_submit($form, &$form_state) {
 				 set plh.' . $f_name . ' = \'' . $f_values . '\'
 			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key, 'status');*/
 	  
-/*	  
+	  
 	  db_query('update t_price_list_head plh
 				 set plh.' . $f_name . ' = \'' . $f_values . '\'
 			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key);
 			   
     }
   }
-  */
+  
   drupal_set_message(t('The changes have been saved.'));
   $form_state['rebuild'] = true;
   cache_clear_all();
