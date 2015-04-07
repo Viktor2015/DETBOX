@@ -293,7 +293,7 @@ function dtbx_privateroom_page($form, &$form_state)
  
   $form['pl']['table']['header'] = array(
     '#type' => 'value',
-    '#value' => array('Номер', 'Размещен', 'Дата', 'Примечание', 'Инфо'),
+    '#value' => array('Номер', 'Размещен', 'Дата', 'Примечание', 'Инфо', 'Удалить'),
   );
 
 
@@ -327,56 +327,42 @@ function dtbx_privateroom_page($form, &$form_state)
     $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_terms'] = array(
 	  '#type' => 'textarea',
       '#default_value' => $rec->price_list_head_terms,
-      '#required' => true
+      '#required' => false
     );
+//////
+ $form['pl']['table']['data'][$rec->price_list_head_id]['del'] = array(
+    '#type' => 'submit',
+    '#value' => t('X'),
+    '#name' => 'id_' . $rec->price_list_head_id,
+    '#entity_id' => $rec->price_list_head_id,
+    '#ajax' => array(
+      'callback' => 'dtbx_privateroom_delete_pl',
+    ),
+    '#attributes' => array(
+      // По этому классу я в своём js отделю овец от козлищ.
+      'class' => array('need-confirm-button'),
+    ),
+  );
+ 
+  $module_path = drupal_get_path('module', 'dtbx_privateroom');
+  $form['#attached'] = array(
+    'js' => array(
+      $module_path . '/js/dtbx_privateroom.js',
+    ),
+  );	
+//////
+/*	
+    $form['pl']['table']['data'][$rec->price_list_head_id]['del'] = array(
+      '#type' => 'submit',
+	  '#value' => 'X',
+	  '#button_type' => 'button', 
+	  //'#attributes' => array('class' => array('ctools-use-modal')), 
+	  '#submit' => array('dtbx_privateroom_delete_pl'),
+	  '#name' => 'id_' . $rec->price_list_head_id
+    );
+*/	
   }
  
-  
-/*					   
-  $table = '<table> <tr>
-               <th>Размещен</th>
-			   <th>Номер</th>
-			   <th>Дата</th>
-			   <th>Примечание</th>
-			   <th>Удалить</th>
-             </tr>';
-  
-  foreach ($records as $rec) {
- 
-	 $table .= '<tr id="' . $rec -> PRICE_LIST_HEAD_ID . '">';
-	 
-	 $table .= '<td rowspan="2" width=5%>';
-	 if ($rec->IS_POSTED == 1) {
-       $table .= '<input type="checkbox" checked="checked"/>';		 
-	 } else {
-	   $table .= '<input type="checkbox"/>';
-	 }	 
-	 $table .= '</td>';
-	 
-	 $table .= '<td rowspan="2" width=10%>' . $rec->PRICE_LIST_HEAD_ID . '</td>';
-	 $table .= '<td rowspan="2" width=10%>' . $rec->PRICE_LIST_HEAD_DATE . '</td>';
-	 $table .= '<td width=70%>' . $rec->PRICE_LIST_HEAD_COMMENT . '</td>';
-	 $table .= '<td rowspan="2" width=5%>' . '<a href="">del</a>' . '</td>';
-	 $table .= '</tr>';
-	 $table .= '<tr>';
-	 
-	 $table .= '<td width=70%><textarea id="' . $rec -> PRICE_LIST_HEAD_ID . '" name="PRICE_LIST_HEAD_TERMS">' . ($rec->PRICE_LIST_HEAD_TERMS) . '</textarea></td>';
-	 
-	 $table .= '</tr>';
-  }			 
-  
-  $table .= '</table>';
-   
-  $form['pl']['table'] = array(
-    '#markup' => $table
-  );
-  
-  $form['pl']['add_pl'] = array(
-    '#type' => 'button', 
-    '#value' => t('Загрузить')
-  );
- */
-
 //
   $form['submit'] = array(
     '#type' => 'submit', 
@@ -385,11 +371,31 @@ function dtbx_privateroom_page($form, &$form_state)
  
  $form['#validate'][] = 'dtbx_privateroom_profile_validate';
  $form['#submit'][] = 'dtbx_privateroom_submit';
- 
- 
+
   return $form;
 }
+/**
+*Удалить прайс-лист
+**/
+function dtbx_privateroom_delete_pl($form, &$form_state){
 
+  $key = substr($form_state['clicked_button']['#name'], 3);
+  db_query('delete from t_price_list_detail 
+            where price_list_head_id = :price_list_head_id', 
+		   array(':price_list_head_id' => $key)
+		    );	  
+	
+  db_query('delete from t_price_list_head
+            where price_list_head_id = :price_list_head_id', 
+   	       array(':price_list_head_id' => $key)
+		    );	  
+    
+  $commands = array(ajax_command_alert('Прайс-лист удален!'));
+  return array('#type' => 'ajax', '#commands' => $commands);
+
+}
+
+//
 function theme_dtbx_privateroom_table($vars) {
   $form = $vars['form'];
   $rows = array();
@@ -500,16 +506,19 @@ function dtbx_privateroom_submit($form, &$form_state) {
     foreach (element_children($form_state['values']['pl']['table']['data'][$key]) as $name) {
 	  $f_name = $name;
 	  $f_values = $form_state['values']['pl']['table']['data'][$key][$name];
-      //drupal_set_message($f_key . ' ' . $f_name . ' '. $f_values, 'status');
-      /*drupal_set_message('update t_price_list_head plh
+	  if (($form['pl']['table']['data'][$key][$name]['#type'] == 'textarea') || (($form['pl']['table']['data'][$key][$name]['#type'] == 'checkbox'))){
+		  
+		//drupal_set_message($f_key . ' ' . $f_name . ' '. $f_values . ' ' . $form['pl']['table']['data'][$key][$name]['#type'], 'status');
+		/*drupal_set_message('update t_price_list_head plh
 				 set plh.' . $f_name . ' = \'' . $f_values . '\'
 			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key, 'status');*/
 	  
 	  
-	  db_query('update t_price_list_head plh
+		db_query('update t_price_list_head plh
 				 set plh.' . $f_name . ' = \'' . $f_values . '\'
-			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key);
-			   
+				  WHERE plh.price_list_head_id = ' . $f_key);
+	  }		  
+				
     }
   }
   
@@ -519,5 +528,5 @@ function dtbx_privateroom_submit($form, &$form_state) {
   return $form;
 }
 
-
 ?>
+
