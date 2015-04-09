@@ -42,7 +42,7 @@ function dtbx_privateroom_menu()
         'type' => MENU_CALLBACK,
     );
 
-    $items['dtbx_privateroom/delete/%pl_id'] = array(
+    $items['dtbx_privateroom/delete/%'] = array(
         'title' => 'Удалить',
         'access callback' => 'dtbx_privateroom_access',
         'page callback' => 'drupal_get_form',
@@ -185,7 +185,7 @@ function dtbx_privateroom_page($form, &$form_state)
   $form_user['locale']['#group'] = 'vertical_tabs';
   $form_user['picture']['#group'] = 'vertical_tabs';    
   */ 
-
+ 
   $form['profile'] = array(
     '#type' => 'fieldset', 
     '#title' => t($profile), 
@@ -398,25 +398,52 @@ function dtbx_privateroom_page($form, &$form_state)
 
   return $form;
 }
+
 /**
-*Удалить прайс-лист
+ * Удаление прайс-листа
 **/
-function dtbx_privateroom_delete_pl(&$form_state, $pl_id){
-    $form['nid'] = array(
+
+function dtbx_privateroom_delete_pl($form, &$form_state, $pl_id){
+    $form['del_pl_id'] = array(
         '#type' => 'value',
         '#value' => $pl_id,
     );
- 
+    $form['#submit'][] = 'dtbx_privateroom_delete_submit';
+	
     return confirm_form($form,
         'Вы действительно хотите удалить прайс-лист <i>' . check_plain($pl_id) . '</i>?',
-        'nodemngr',
-        'Эта операция не обратима',
+        'dtbx_privateroom',
+        'Восстановить удаленные прас-листы будет не возможно',
         'Удалить',
         'Отменить'
     );
 }
 
-//
+function dtbx_privateroom_delete_submit($form, &$form_state) {
+   $pl_id = $form_state['values']['del_pl_id'];
+   
+   db_query('update t_price_list_head plh
+			    set plh.is_posted = 1
+			  where plh.price_list_head_id = ' . $pl_id);
+/*
+  db_query('delete from t_price_list_detail pld
+   		     where pld.price_list_head_id = ' . $pl_id);
+
+  db_query('delete from t_price_list_head plh
+   		     where plh.price_list_head_id = ' . $pl_id);
+			 
+*/
+   
+   drupal_set_message('Прайс-лист № ' . $pl_id . ' удален!');
+   drupal_goto('dtbx_privateroom');
+   $form_state['rebuild'] = true;
+  	
+}
+
+
+/**
+ * Тема таблица
+**/
 function theme_dtbx_privateroom_table($vars) {
   $form = $vars['form'];
   $rows = array();
@@ -485,7 +512,7 @@ function dtbx_privateroom_profile_validate($form, &$form_state) {
 
 function dtbx_privateroom_submit($form, &$form_state) {
   global $user;
-
+ 
  //Профиль
   $account = clone $user;
   
@@ -546,6 +573,7 @@ function dtbx_privateroom_submit($form, &$form_state) {
   drupal_set_message(t('The changes have been saved.'));
   $form_state['rebuild'] = true;
   cache_clear_all();
+
   return $form;
 }
 
