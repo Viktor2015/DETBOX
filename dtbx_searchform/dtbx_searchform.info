@@ -3,5 +3,4 @@ description = Поиск запчастей
 core = 7.x
 version = 7.x-1.0
 files[] = dtbx_searchform.module
-stylesheets[all][] = kimeelman.css
 package = DetBox

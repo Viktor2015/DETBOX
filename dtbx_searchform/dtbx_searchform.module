@@ -1,40 +1,18 @@
 ﻿<?php
 
-
-
-
-function dtbx_searchform_init() {
-
+function dtbx_searchform_init()
+{
  static $already_added = FALSE;
-
-  drupal_set_message('+', 'status');
+  //drupal_set_message('+', 'status');
+  
+  //$code_path = $GLOBALS['base_url'] . '/misc/code.js';
+  //drupal_add_js($code_path);
   
   if ($already_added) {
     return; // Don't add the JavaScript and CSS multiple times.
-  }	
-		
- 
-  drupal_add_js($GLOBALS['base_url'] . '/jquery-easyui/jquery.min.js', array('weight' => -20));
-  drupal_add_js($GLOBALS['base_url'] . '/jquery-easyui/jquery.easyui.min.js', array('weight' => -19));
-  drupal_add_js($GLOBALS['base_url'] . '/code.js', array('weight' => -18));
-  
-  
+  }	  
   $already_added = TRUE;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /**
  * Implements hook_menu().
@@ -49,6 +27,31 @@ function dtbx_searchform_menu()
 		'page arguments' => array('dtbx_searchform_page'),
         'type' => MENU_CALLBACK,
     );
+	
+	$items['dtbx_searchform/brend/%'] = array(
+        'title' => 'Поиск бренда',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_brend',
+		'page arguments' => array(2),
+        'type' => MENU_CALLBACK,
+	);
+
+	$items['dtbx_searchform/model/%'] = array(
+        'title' => 'Поиск модели',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_model',
+		'page arguments' => array(2),
+        'type' => MENU_CALLBACK,	
+	);
+	
+    $items['dtbx_searchform/search'] = array(
+        'title' => 'Поиск',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_search',
+		'page arguments' => array(2, 3, 4),
+        'type' => MENU_CALLBACK,
+    );
+	
 	return $items;
 }
 
@@ -56,8 +59,95 @@ function dtbx_searchform_menu()
 /**
 * Page callback.
 **/
+function dtbx_searchform_brend($brendid)
+{
+
+	$output = '<a href="/dtbx_searchform/">Поиск</a>';
+	//$output .= ("brendid=" . $brendid);
+	
+	$result = db_query('select car_brend_name
+								 from t_car_brend
+								 where car_brend_id = :car_brend_id',
+								array(':car_brend_id' => $brendid));
+								
+								
+								
+	foreach($result as $item)
+	{
+		$output .= ('<h1>' . $item->car_brend_name . '</h1>');
+	}
+	
+	$result_brend = db_query('select cm.car_model_id, cm.car_model_name
+								 from t_car_model cm
+								 where cm.car_brend_id = :car_brend_id',
+								array(':car_brend_id' => $brendid));
+	foreach($result_brend as $item_brend)
+	{
+		$output .= (' <a href="/dtbx_searchform/model/' . $item_brend->car_model_id . '">' . $item_brend->car_model_name . '</a>');
+	}					
+								
+	
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+
+}
+function dtbx_searchform_model($modelid){
+
+	$output = '<a href="/dtbx_searchform/">Поиск</a> &gt; ';
+	
+	$modelname = "";
+	$brendid = 0;
+	
+	$result = db_query('select * from t_car_model where car_model_id = :car_model_id', array(':car_model_id' => $modelid));
+	foreach($result as $item)
+	{
+		$modelname = $item->car_model_name;
+		$brendid = $item->car_brend_id;
+	}
+	
+	$result_brend = db_query('select * from t_car_brend where car_brend_id = :car_brend_id', array(':car_brend_id' => $brendid));
+								
+	foreach($result_brend as $item_brend)
+	{
+		$output .= (' <a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a>');
+	}
+	
+	$output .= ('<h1>ModelName=' . $modelname . '<br>ModelID=' . $modelid . '</h1>');
+
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+}
+
 function dtbx_searchform_page($form, &$form_state) 
 {
+	$output = "";
+	if(isset($_GET['code']) && isset($_GET['type']) && isset($_GET['car']))
+	{
+		//drupal_set_message('Car=' . $_GET['car'] . ' type=' . $_GET['type'] . ' code=' . $_GET['code'], 'status');
+		$output = dtbx_searchform_search($_GET['code'], $_GET['type']);
+	}
+
+
+	/*$form['catalogs'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t('Каталоги'),
+	);
+	
+	$form['catalogs']['table'] = array(
+		'#markup' => '<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>&nbsp;<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a><br>
+		<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>'
+	);*/
+
 	$searchtypes = array('Артикул', 'Наименование', 'Штрихкод');
 	
 	$form['search'] = array(
@@ -73,7 +163,7 @@ function dtbx_searchform_page($form, &$form_state)
 	
 	$form['search']['searchvalue'] = array(
 		'#type' => 'textfield', 
-		'#size' => 60, 
+		'#size' => 100, 
 		'#maxlength' => 128
 	);
 	
@@ -81,105 +171,183 @@ function dtbx_searchform_page($form, &$form_state)
 	$form['search']['submit'] = array(
 		'#type' => 'submit', 
 		'#value' => t('Искать'), 
-		'#submit' => array('dtbx_searchform_submit')
+		//'#submit' => array('dtbx_searchform_submit')
 	);
+	
+	/*$form['search']['translit'] = array(
+		'#type' => 'checkbox', 
+		'#title' => t('Транслит'), 
+		'#prefix' => '<br>'
+	);*/
 	
 	$form['search']['submit']['#ajax'] = array('callback' => 'add_to_form_submit_handler',
 			'wrapper' => 'form-ajax-node-content',
 			'method' => 'replace',
 			'effect' => 'fade');
 			
-       $form['markup'] = array(
-            '#prefix' => '<div id = "form-ajax-node-content">',
-            '#suffix' => '</div>',
-            '#markup' => '<div id="searchresult">hi</div>',
-            '#weight' => 2000, //set weight to show markup at the bottom of the form
-       );
-	   /*
-	$form['#attached']['js'] = array(
-		$GLOBALS['base_url'] . '/jquery-easyui/jquery.min.js',
-		$GLOBALS['base_url'] . '/jquery-easyui/jquery.easyui.min.js',
-		$GLOBALS['base_url'] . '/code.js'
-	  );*/
-  
-	/*$form['#attached']['css'] = array(
-		$GLOBALS['base_url'] . '/jquery-easyui/themes/default/easyui.css',
-		$GLOBALS['base_url'] . '/jquery-easyui/themes/icon.css',
+	if($output == "")
+	{
+		/*$output = '<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>&nbsp;<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a><br>
+		<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>';*/
+	
 		
+		$result_type = db_query('select * from t_car_type where is_visible = 1');
+		
+		foreach($result_type as $item_type)
+		{
+			$output .= ('<h1>' . $item_type->car_type_name . '</h1>');
+			
+			$result_brend = db_query('select cb.car_brend_id, cb.car_brend_name
+								 from t_car_type_brend ctb,
+									  t_car_brend cb
+								 where ctb.car_brend_id = cb.car_brend_id AND
+									   ctb.car_type_id = :car_type_id',
+								array(':car_type_id' => $item_type->car_type_id));
+								
+			
+								
+			foreach($result_brend as $item_brend)
+			{
+				$output .= (' <a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a>');
+			}
+									   
+		}
+	
+	}
+		
+    $form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	
+	/*$form['catalogs'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t('Каталоги'),
 	);
 	
-	drupal_add_css($GLOBALS['base_url'] . '/myown.css');*/
+	$form['catalogs']['table'] = array(
+		'#markup' => '<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>&nbsp;<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a><br>
+		<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>'
+	);*/
 	
 	return $form;
 }
 
-function add_to_form_submit_handler($form, &$form_state) {
-
-	$numels = count($form_state['values']['searchvalue']);
-	
-	$easyui_path = $GLOBALS['base_url'] . '/jquery-easyui/themes/default/easyui.css';
-	$myown_path = $GLOBALS['base_url'] . '/myown.css';
-	
-	$oldoutput = '<table id="dg" class="easyui-datagrid">
-					<thead>
-						<tr>
-							<th data-options="field:\'code\'">Code</th>
-							<th data-options="field:\'name\'">Name</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr>
-							<td>' . $form_state['values']['searchtype'] . '</td>
-							<td>' .  $form_state['values']['searchvalue'] . '</td>
-						</tr>
-					</tbody>
-				</table>';
-	
-	
-	$output = '	<link rel="stylesheet" type="text/css" href="' . $easyui_path . '">
-				<link rel="stylesheet" type="text/css" href="' . $myown_path . '">
-				
-				<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/jquery-easyui/jquery.min.js"></script>
-				<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/jquery-easyui/jquery.easyui.min.js"></script>
-				<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/code.js"></script>
-				
-				<div class="myown">Hello11</div><br>
-				<table id="dg"></table>
-				<script type="text/javascript" >setTimeout(\'renewtable()\', 1000)</script>';
-	
-	
-   //$output = '<table border=1><tr><td>' . $form_state['values']['searchtype'] . "</td><td>" .  $form_state['values']['searchvalue'] . "</td></tr></table>";
-   $form['markup'] = array(
-            '#prefix' => '<div id = "form-ajax-node-content">',
-            '#suffix' => '</div>',
-            '#markup' => $output,
-            '#weight' => 2,
-       );
-    return $form['markup'];
+function translit($input)
+{
+	$output = "";
+	$latinchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ[{]};:'\",<.>`~";
+	$ruschars = "фисвуапршолдьтщзйкыегмцчняФИСВУАПРШОЛДЬТЩЗЙКЫЕГМЦЧНЯхХъЪжЖэЭбБюЮёЁ";
+	$ruschars_arr = str_split($ruschars);
+	$input_arr = str_split($input);
+	$size = count($input_arr);
+	for($i = 0; $i < $size; $i++)
+	{
+		$pos = strpos($latinchars, $input_arr[$i]);
+		if($pos !== false)
+		{
+			$j = $pos * 2;
+			$output .= $ruschars_arr[$j];
+			$output .= $ruschars_arr[$j+1];
+		}
+		else
+			$output .= $input_arr[$i];
+	}
+	return $output;
 }
 
-/*
-function dtbx_searchform_form($form, &$form_state) {
+function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
+{
+	$myown_path = $GLOBALS['base_url'] . '/css/myown.css';
+				
+	$str_query = "";
+	$elements = explode(' ',$partcode);
+	$countelements = count($elements);
+	$output = "";
+	$searchstring = "";
+	if($countelements == 0 || ($countelements == 1 && strlen($elements[0]) == 0))
+	{
+		$output = "Введите данные поиска";
+	}
+	else
+	{
+		if($searchtype == 0)
+		{
+			$str_query = 'select * from v_relust_search where UPPER(PRODUCT_CODE) = UPPER(\'' . $elements[0] . '\')';
+			if($countelements > 1)
+			{
+				for($i = 1; $i < $countelements; $i++) $str_query .= ' OR UPPER(PRODUCT_CODE) = UPPER(\'' . $elements[$i] . '\')';
+			}
+		}
+		else
+		{
+			$str_query ='select * from v_relust_search where 0=0';
+			$translited = translit($elements[0]);
+			$searchstring .= $translited;
+			if(strcmp($translited, $elements[0]) == 0)
+				$str_query .=' AND UPPER(PRODUCT_NAME) like UPPER(\'%'. $elements[0] .'%\')';
+			else
+				$str_query .=' AND (UPPER(PRODUCT_NAME) like UPPER(\'%'. $elements[0] .'%\') OR UPPER(PRODUCT_NAME) like UPPER(\'%'. $translited .'%\'))';
+			if($countelements > 1)
+			{
+				for($i = 1; $i < $countelements; $i++)
+				{
+					$translited = translit($elements[$i]);
+					$searchstring .= (' ' . $translited);
+					if(strcmp($translited, $elements[$i]) == 0)
+						$str_query .= ' AND UPPER(PRODUCT_NAME) like UPPER(\'%'. $elements[$i] .'%\')';
+					else
+						$str_query .=' AND (UPPER(PRODUCT_NAME) like UPPER(\'%'. $elements[$i] .'%\') OR UPPER(PRODUCT_NAME) like UPPER(\'%'. $translited .'%\'))';
+				}
+			}
+		}
+		
+		$result = db_query($str_query);
+		$firsttime = true;
+		$orderbutton = '<div class="orderbutton"><a href="#">Заказать</a></div>';
+		
+		foreach ($result as $item)
+		{
+			if($firsttime)
+			{
+				$firsttime = false;
+				$output = '<link rel="stylesheet" type="text/css" href="' . $myown_path . '">
+				<table><thead><tr><th>производитель</th><th>номер</th><th>наименование</th><th>обновление</th><th>количество</th><th>цена</th><th colspan=2>продавец</th></tr></thead><tbody>';
+			}
+			$today = date("y-m-d");
+			$strdate = ($item->price_list_head_date == $today) ? "сегодня" : $item->price_list_head_date;
+		
+			$row = '<tr><td><a href="#">' . $item->ext_vendor_name . '</a></td><td>' . $item->product_code . '</td><td>' . $item->product_name . '</td><td>' . $strdate . '</td><td><div class="celltext">' . 
+					$item->product_count . ' шт.</div>' . $orderbutton . '</td><td>' . $item->product_price . 'р.</td><td><a href="/dtbx_sellerinfo/' . $item->user_id . '/1"  title="" class="ctools-use-modal">' . $item->company_name . '</a></td><td>' . $item->user_rating . '</td></tr>';
+			$output .= $row;
+		}
+		if($firsttime)
+			$output = "Ничего не найдено...";
+		else
+			$output .= '</tbody></table>';
+	}
+	return $output;
+}
 
-    if(!empty($form_state['temporary'])) {
-        $form['results'] = array(
-            '#type'     => 'item',
-            '#markup'   => $form_state['temporary'], 
-        );
-    }
-
-    return $form;
-}*/
 
 
+function add_to_form_submit_handler($form, &$form_state) 
+{
+	$form['markup'] = array(
+			'#prefix' => '<div id = "form-ajax-node-content">',
+			'#suffix' => '</div>',
+			'#markup' => dtbx_searchform_search($form_state['values']['searchvalue'], $form_state['values']['searchtype']),
+			'#weight' => 2,
+	);
+    return $form['markup']; 
+}
 
 
 function dtbx_searchform_submit($form, &$form_state)
 {
 	global $user;
-	
-	
-   
 	/*db_query('UPDATE T_USER u 
 		      SET u.USER_SURNAME = :USER_SURNAME, 
 				  u.USER_NAME = :USER_NAME, 
@@ -198,11 +366,6 @@ function dtbx_searchform_submit($form, &$form_state)
 				 ':COMPANY_CONTACT' =>  $form_state['values']['access']['contact'],
 				 ':UID' => $user->uid
 		   ));*/
-		   
-		   
-	
-		
-
 return $form;
 }
 

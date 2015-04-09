@@ -13,14 +13,14 @@ static $already_added = FALSE;
     return; // Don't add the JavaScript and CSS multiple times.
   }	
   // Include the CTools tools that we need.
-  ctools_include('ajax');
-  ctools_include('modal');
+  //ctools_include('ajax');
+  //ctools_include('modal');
 
   // Add CTools' javascript to the page.
-  ctools_modal_add_js();
+  //ctools_modal_add_js();
   
   $path = drupal_get_path('module', 'dtbx_privateroom');
-  drupal_add_js($path . '/js/dtbx_privateroom.js', array('weight' => -20));
+  //drupal_add_js($path . '/js/dtbx_privateroom.js', array('weight' => -20));
   
   $already_added = TRUE;
 }
@@ -37,9 +37,20 @@ function dtbx_privateroom_menu()
         'title' => 'Личные данные',
         'access callback' => 'dtbx_privateroom_access',
         'page callback' => 'dtbx_privateroom_callback',
-		'page arguments' => array(1),		
+		//'page arguments' => array(1),		
+
         'type' => MENU_CALLBACK,
     );
+
+    $items['dtbx_privateroom/delete/%pl_id'] = array(
+        'title' => 'Удалить',
+        'access callback' => 'dtbx_privateroom_access',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('dtbx_privateroom_delete_pl', 2),
+        'type' => MENU_CALLBACK,
+    );
+	
+	
 	return $items;
 }
 
@@ -61,9 +72,10 @@ function dtbx_privateroom_theme() {
 * Page callback.
 **/
 
-function dtbx_privateroom_callback($ajax) 
+//function dtbx_privateroom_callback($ajax) 
+function dtbx_privateroom_callback() 
 {
-  if ($ajax) {
+  /*if ($ajax) {
     global $user;
     $form_state = array(
       'ajax' => TRUE,
@@ -78,9 +90,9 @@ function dtbx_privateroom_callback($ajax)
 	
     print ajax_render($output);
   }
-  else {
+  else {*/
     return drupal_get_form('dtbx_privateroom_page');
-  }	
+  /*}	*/
 }
 
 function dtbx_privateroom_form_process_password_confirm($element) {
@@ -137,7 +149,11 @@ function dtbx_privateroom_page($form, &$form_state)
 	$persondata = "Персональные данные";	
 	$pl = "Прайс-лист";
 	
+	//Локация
 	
+	$ip = ip_address();
+	//$ip = '178.237.185.72';
+	$answer = ipgeo_from_xml($ip);
 	
 	global $user;
 	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
@@ -178,6 +194,9 @@ function dtbx_privateroom_page($form, &$form_state)
 	'#validate' => array('dtbx_privateroom_profile_validate')
   );
   
+  $form['profile']['city'] = array(
+    '#markup' => $answer->city
+  );
   
   $form['profile']['name'] = array(
     '#type' => 'textfield',
@@ -330,6 +349,11 @@ function dtbx_privateroom_page($form, &$form_state)
       '#required' => false
     );
 //////
+ $form['pl']['table']['data'][$rec->price_list_head_id]['del'][] = array(
+      '#markup' => l(t('удалить'), 'dtbx_privateroom/delete/' .  $rec->price_list_head_id, array('alias' => true))
+	);
+	
+ /*
  $form['pl']['table']['data'][$rec->price_list_head_id]['del'] = array(
     '#type' => 'submit',
     '#value' => t('X'),
@@ -339,11 +363,11 @@ function dtbx_privateroom_page($form, &$form_state)
       'callback' => 'dtbx_privateroom_delete_pl',
     ),
     '#attributes' => array(
-      // По этому классу я в своём js отделю овец от козлищ.
+      
       'class' => array('need-confirm-button'),
     ),
   );
- 
+ */
   $module_path = drupal_get_path('module', 'dtbx_privateroom');
   $form['#attached'] = array(
     'js' => array(
@@ -377,22 +401,19 @@ function dtbx_privateroom_page($form, &$form_state)
 /**
 *Удалить прайс-лист
 **/
-function dtbx_privateroom_delete_pl($form, &$form_state){
-
-  $key = substr($form_state['clicked_button']['#name'], 3);
-  db_query('delete from t_price_list_detail 
-            where price_list_head_id = :price_list_head_id', 
-		   array(':price_list_head_id' => $key)
-		    );	  
-	
-  db_query('delete from t_price_list_head
-            where price_list_head_id = :price_list_head_id', 
-   	       array(':price_list_head_id' => $key)
-		    );	  
-    
-  $commands = array(ajax_command_alert('Прайс-лист удален!'));
-  return array('#type' => 'ajax', '#commands' => $commands);
-
+function dtbx_privateroom_delete_pl(&$form_state, $pl_id){
+    $form['nid'] = array(
+        '#type' => 'value',
+        '#value' => $pl_id,
+    );
+ 
+    return confirm_form($form,
+        'Вы действительно хотите удалить прайс-лист <i>' . check_plain($pl_id) . '</i>?',
+        'nodemngr',
+        'Эта операция не обратима',
+        'Удалить',
+        'Отменить'
+    );
 }
 
 //
@@ -526,6 +547,26 @@ function dtbx_privateroom_submit($form, &$form_state) {
   $form_state['rebuild'] = true;
   cache_clear_all();
   return $form;
+}
+
+function ipgeo_from_xml($ip) {
+  $url = 'http://ipgeobase.ru:7020/geo?ip=' . $ip;
+
+  // simplexml_load_file($url) doesn't work with allow_url_fopen = Off.
+  $result = drupal_http_request($url);
+  if($result->code < 300 && $xml = @simplexml_load_string($result->data)) {
+    return (object) array(
+      'country'   => (string)$xml->ip->country,
+      'city'      => (string)$xml->ip->city,
+      'subject'   => (string)$xml->ip->region,
+      'fo'        => (string)$xml->ip->district,
+      'latitude'  => (string)$xml->ip->lat,
+      'longitude' => (string)$xml->ip->lng,
+    );
+  }
+  else {
+    return FALSE;
+  }
 }
 
 ?>
