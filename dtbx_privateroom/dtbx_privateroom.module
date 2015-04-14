@@ -38,11 +38,10 @@ function dtbx_privateroom_menu()
         'access callback' => 'dtbx_privateroom_access',
         'page callback' => 'dtbx_privateroom_callback',
 		//'page arguments' => array(1),		
-
         'type' => MENU_CALLBACK,
     );
 
-    $items['dtbx_privateroom/delete/%'] = array(
+    $items['dtbx_privateroom/delete/%pl_id'] = array(
         'title' => 'Удалить',
         'access callback' => 'dtbx_privateroom_access',
         'page callback' => 'drupal_get_form',
@@ -145,8 +144,8 @@ function dtbx_privateroom_page($form, &$form_state)
 	$juraddress = "";
 	$realaddress = "";
 	$contact = "";
-	$profile = "Профиль";
-	$persondata = "Персональные данные";	
+        $persondata = "Персональные данные";
+	$profile = "Профиль пользователя";
 	$pl = "Прайс-лист";
 	
 	//Локация
@@ -175,6 +174,7 @@ function dtbx_privateroom_page($form, &$form_state)
   $form['vertical_tabs'] = array(
     '#type' => 'vertical_tabs',
 	'#title' => $items->user_login, 
+     
 	//'#default_tab' => 'edit-pl'
   ); 
 //
@@ -185,17 +185,20 @@ function dtbx_privateroom_page($form, &$form_state)
   $form_user['locale']['#group'] = 'vertical_tabs';
   $form_user['picture']['#group'] = 'vertical_tabs';    
   */ 
- 
+
   $form['profile'] = array(
     '#type' => 'fieldset', 
     '#title' => t($profile), 
     '#tree' => TRUE,
+       '#attributes' => array('class' => array('profile')),
 	'#group' => 'vertical_tabs',
 	'#validate' => array('dtbx_privateroom_profile_validate')
   );
   
   $form['profile']['city'] = array(
-    '#markup' => $answer->city
+     '#type' => 'textfield',
+      '#title' => t('Город'),
+    '#default_value' =>  $answer->city
   );
   
   $form['profile']['name'] = array(
@@ -203,7 +206,7 @@ function dtbx_privateroom_page($form, &$form_state)
     '#title' => t('Username'),
     '#size' => 60,
     '#maxlength' => USERNAME_MAX_LENGTH,
-	'#description' => t('Spaces are allowed; punctuation is not allowed except for periods, hyphens, apostrophes, and underscores.'),
+	
 	'#default_value' => $user->name,
     '#required' => TRUE
   );
@@ -212,8 +215,7 @@ function dtbx_privateroom_page($form, &$form_state)
     '#type' => 'textfield',
     '#title' => t('E-mail address'),
     '#maxlength' => EMAIL_MAX_LENGTH,
-    '#description' => t('A valid e-mail address. All e-mails from the system will be sent to this address. The e-mail address is not made public and will only be used if you wish to receive a new password or wish to receive certain news or notifications by e-mail.'),
-    '#required' => TRUE,
+     '#required' => TRUE,
     '#default_value' => $user->mail,  
   );
 
@@ -227,8 +229,7 @@ function dtbx_privateroom_page($form, &$form_state)
     '#type' => 'password_confirm',
     '#size' => 25,
 	'#process' => array('form_process_password_confirm', 'dtbx_privateroom_form_process_password_confirm'),
-    '#description' => t('To change the current user password, enter the new password in both fields.'),
-  );   
+    );   
   
 
 //   
@@ -236,6 +237,7 @@ function dtbx_privateroom_page($form, &$form_state)
     '#type' => 'fieldset', 
     '#title' => t($persondata), 
     '#tree' => TRUE,
+      '#attributes' => array('class' => array('persondata')),
 	'#group' => 'vertical_tabs'
   );  
   
@@ -302,6 +304,7 @@ function dtbx_privateroom_page($form, &$form_state)
     '#type' => 'fieldset', 
     '#title' => t($pl), 
     '#tree' => TRUE,
+            '#attributes' => array('class' => array('pl')),
 	'#group' => 'vertical_tabs'	
   ); 
 
@@ -398,52 +401,25 @@ function dtbx_privateroom_page($form, &$form_state)
 
   return $form;
 }
-
 /**
- * Удаление прайс-листа
+*Удалить прайс-лист
 **/
-
-function dtbx_privateroom_delete_pl($form, &$form_state, $pl_id){
-    $form['del_pl_id'] = array(
+function dtbx_privateroom_delete_pl(&$form_state, $pl_id){
+    $form['nid'] = array(
         '#type' => 'value',
         '#value' => $pl_id,
     );
-    $form['#submit'][] = 'dtbx_privateroom_delete_submit';
-	
+ 
     return confirm_form($form,
         'Вы действительно хотите удалить прайс-лист <i>' . check_plain($pl_id) . '</i>?',
-        'dtbx_privateroom',
-        'Восстановить удаленные прас-листы будет не возможно',
+        'nodemngr',
+        'Эта операция не обратима',
         'Удалить',
         'Отменить'
     );
 }
 
-function dtbx_privateroom_delete_submit($form, &$form_state) {
-   $pl_id = $form_state['values']['del_pl_id'];
-   
-   db_query('update t_price_list_head plh
-			    set plh.is_posted = 1
-			  where plh.price_list_head_id = ' . $pl_id);
-/*
-  db_query('delete from t_price_list_detail pld
-   		     where pld.price_list_head_id = ' . $pl_id);
-
-  db_query('delete from t_price_list_head plh
-   		     where plh.price_list_head_id = ' . $pl_id);
-			 
-*/
-   
-   drupal_set_message('Прайс-лист № ' . $pl_id . ' удален!');
-   drupal_goto('dtbx_privateroom');
-   $form_state['rebuild'] = true;
-  	
-}
-
-
-/**
- * Тема таблица
-**/
+//
 function theme_dtbx_privateroom_table($vars) {
   $form = $vars['form'];
   $rows = array();
@@ -512,7 +488,7 @@ function dtbx_privateroom_profile_validate($form, &$form_state) {
 
 function dtbx_privateroom_submit($form, &$form_state) {
   global $user;
- 
+
  //Профиль
   $account = clone $user;
   
@@ -573,7 +549,6 @@ function dtbx_privateroom_submit($form, &$form_state) {
   drupal_set_message(t('The changes have been saved.'));
   $form_state['rebuild'] = true;
   cache_clear_all();
-
   return $form;
 }
 
