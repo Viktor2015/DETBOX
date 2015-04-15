@@ -1,0 +1,341 @@
+<?php
+
+/**
+ * init().
+ */
+
+  
+function dtbx_sellerinfo_init() {
+
+static $already_added = FALSE;
+
+  if ($already_added) {
+    return; // Don't add the JavaScript and CSS multiple times.
+  }	
+  // Include the CTools tools that we need.
+  ctools_include('ajax');
+  ctools_include('modal');
+
+  // Add CTools' javascript to the page.
+  ctools_modal_add_js();  
+  $already_added = TRUE;
+}
+
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_sellerinfo_menu() 
+{
+
+
+    $items['dtbx_sellerinfo'] = array(
+        'title' => 'Данные продавца',
+        'access callback' => 'dtbx_sellerinfo_access',
+        'page callback' => 'dtbx_sellerinfo_callback',
+		'page arguments' => array(1,2),		
+        'type' => MENU_CALLBACK,
+    );
+	return $items;
+}
+/**
+* Page callback.
+**/
+
+function dtbx_sellerinfo_callback($sellerid, $tabid) 
+{
+	$str_query = 'select * from t_user where user_id = ' . $sellerid;
+	$items = db_query($str_query)->fetchObject();
+    
+    $form_state = array(
+      'ajax' => TRUE,
+      'title' => t('Данные продавца: ') . $items->company_name,
+	  'items' => $items,
+	  'tabid' => $tabid,
+    );
+
+    $output = ctools_modal_form_wrapper('dtbx_sellerinfo_page', $form_state);
+	
+
+    if (!empty($form_state['ajax_commands'])) {
+      $output = $form_state['ajax_commands'];
+    }
+	
+    print ajax_render($output);
+ }
+
+
+function dtbx_sellerinfo_page($form, &$form_state) 
+{
+
+	$surname = "";
+	$firstname = "";
+	$patronname = "";
+	$companyname = "";
+	$juraddress = "";
+	$realaddress = "";
+	$contact = "";
+	$profile = "Профиль";
+	$persondata = "Персональные данные";	
+	$pl = "Прайс-лист";
+	$responce = "Отзывы";
+	
+	
+	$items = $form_state['items'];
+	$tid = $form_state['tabid'];
+	$secondpart = "";
+	switch($tid)
+	{
+	case '1': $secondpart = "profile";
+			break;
+	case '2': $secondpart = "access";
+			break;
+	case '3': $secondpart = "pl";
+			break;
+	case '4': $secondpart = "responce";
+			break;	
+	}
+	$tabid = 'edit-' . $secondpart;
+	//global $user;
+	//$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+	
+	if(count($items) > 0)
+	{
+		$surname = $items->user_surname;
+		$firstname = $items->user_name;
+		$patronname = $items->user_patronymic;
+		$companyname = $items->company_name;
+		$juraddress = $items->company_address;
+		$realaddress = $items->company_actual_address;
+		$contact = $items->company_contact;
+		//$persondata .= $items->USER_LOGIN;
+	}
+  
+  $form['#attributes'] = array('class' => 'ctools-use-modal');
+  
+  $form['vertical_tabs'] = array(
+    '#type' => 'vertical_tabs',
+	'#default_tab' => $tabid,
+  ); 
+//
+  $form['profile'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($profile), 
+	'#group' => 'vertical_tabs'	
+  ); 
+//  
+  $form['access'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($persondata), 
+	'#group' => 'vertical_tabs'
+  );  
+//
+  $form['pl'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($pl), 
+	'#group' => 'vertical_tabs'	
+  ); 
+  
+  $form['responce'] = array(
+    '#type' => 'fieldset', 
+    '#title' => t($responce), 
+	'#group' => 'vertical_tabs'	
+  );
+  
+  $output = '
+		<table width=50%>
+		<tr><td width=200>Название компании</td><td>' . $companyname . '</td></tr>
+		<tr><td>Адрес компании</td><td>' . $juraddress . '</td></tr>
+		<tr><td>Контактное лицо</td><td>' . $contact . '</td></tr>
+		</table>
+  ';
+  
+  
+  
+  $form['profile']['table'] = array(
+    '#markup' => $output
+  );
+  $form['access']['table'] = array(
+    '#markup' => '<h1>Hello2</h1>'
+  );
+  $form['pl']['table'] = array(
+    '#markup' => '<h1>Hello3</h1>'
+  );
+  $form['pl']['table2'] = array(
+    '#markup' => '<h1>Hello10</h1>'
+  );
+  
+  $form['responce']['resp1'] = array(
+    '#title' => t('Ваше мнение:'),
+    '#type' => 'textarea',
+    '#rows' => 10,
+    '#cols' => 60,
+    '#resizable' => TRUE,
+  );
+  
+  $form['responce']['shopid'] = array(
+      '#type' => 'hidden',
+      '#value' =>  $items->user_id,
+    );
+  
+  $form['responce']['rating'] = array(
+	'#type' => 'radios',
+	'#title' => t('рейтинг'),
+	'#options' => array(
+	t('1'),
+	t('2'),
+	t('3'),
+	t('4'),
+	t('5'),
+	)
+  );
+  
+  $form['responce']['submit'] = array(
+	'#type' => 'submit', 
+	'#value' => t('Добавить отзыв'), 
+	//'#submit' => array('dtbx_sellerinfo_submit'),
+  );
+  
+  
+ $form['#submit'][] = 'dtbx_sellerinfo_submit';
+  
+  
+  $records = db_query("SELECT * 
+					  FROM t_reweiv tr 
+					  WHERE tr.to_user_id = :uid", array(':uid' => $items->user_id));
+					  
+	$output = "<table><tr><th>rating</th><th>date</th></tr>";				  
+	foreach ($records as $rec) {
+	
+		$output .= ('<tr><td>' . $rec->reweiv_rating . '</td><td>' . $rec->reweiv_date . '</td></tr>');
+		
+	}
+	$output .= "</table>";
+  
+  
+  $form['responce']['table2'] = array(
+    '#markup' => $output
+  );
+  
+/*
+  $records = db_query("select plh.PRICE_LIST_HEAD_ID, 
+							  plh.IS_POSTED, 
+							  DATE_FORMAT(plh.PRICE_LIST_HEAD_DATE, '%d.%m.%Y') as PRICE_LIST_HEAD_DATE, 
+							  plh.PRICE_LIST_HEAD_COMMENT, 
+							  plh.PRICE_LIST_HEAD_TERMS as PRICE_LIST_HEAD_TERMS
+			  		   from t_price_list_head plh, t_user u 
+					   where plh.user_id = u.user_id and u.uid = :uid", array(':uid' => $user->uid));
+  $table = '<table> <tr>
+               <th>Размещен</th>
+			   <th>Номер</th>
+			   <th>Дата</th>
+			   <th>Примечание</th>
+			   <th>Удалить</th>
+             </tr>';
+  
+  foreach ($records as $rec) {
+ 
+	 $table .= '<tr id="' . $rec -> PRICE_LIST_HEAD_ID . '">';
+	 
+	 $table .= '<td rowspan="2" width=5%>';
+	 if ($rec->IS_POSTED == 1) {
+       $table .= '<input type="checkbox" checked="checked"/>';		 
+	 } else {
+	   $table .= '<input type="checkbox"/>';
+	 }	 
+	 $table .= '</td>';
+	 
+	 $table .= '<td rowspan="2" width=10%>' . $rec->PRICE_LIST_HEAD_ID . '</td>';
+	 $table .= '<td rowspan="2" width=10%>' . $rec->PRICE_LIST_HEAD_DATE . '</td>';
+	 $table .= '<td width=70%>' . $rec->PRICE_LIST_HEAD_COMMENT . '</td>';
+	 $table .= '<td rowspan="2" width=5%>' . '<a href="">del</a>' . '</td>';
+	 $table .= '</tr>';
+	 $table .= '<tr>';
+	 
+	 $table .= '<td width=70%><textarea id="' . $rec -> PRICE_LIST_HEAD_ID . '" name="PRICE_LIST_HEAD_TERMS">' . ($rec->PRICE_LIST_HEAD_TERMS) . '</textarea></td>';
+	 
+	 $table .= '</tr>';
+  }			 
+  
+  $table .= '</table>';
+   
+  $form['pl']['table'] = array(
+    '#markup' => $table
+  );
+  
+  $form['pl']['add_pl'] = array(
+    '#type' => 'button', 
+    '#value' => t('Загрузить')
+  );
+*/
+//$form['#submit'][] = 'dtbx_sellerinfo_submit';
+
+/*$form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Сохранить'), 
+    '#submit' => array('dtbx_sellerinfo_submit')
+  );*/
+  
+  return $form;
+}
+
+
+
+
+
+/**
+* Page access.
+**/
+
+function dtbx_sellerinfo_access() {
+  global $user;
+  return ($user->uid > 0);
+
+}
+
+function dtbx_sellerinfo_submit($form, &$form_state)
+{
+  global $user;
+//Профиль
+	
+//Персональные данные	
+   
+	/*db_query('UPDATE t_user u 
+		      SET u.USER_SURNAME = :USER_SURNAME, 
+				  u.USER_NAME = :USER_NAME, 
+				  u.USER_PATRONYMIC = :USER_PATRONYMIC, 
+				  u.COMPANY_NAME = :COMPANY_NAME, 
+				  u.COMPANY_ADDRESS = :COMPANY_ADDRESS, 
+				  u.COMPANY_ACTUAL_ADDRESS = :COMPANY_ACTUAL_ADDRESS, 
+				  u.COMPANY_CONTACT = :COMPANY_CONTACT 
+              WHERE u.UID = :UID', 
+		   array(':USER_SURNAME' => $form_state['values']['access']['surname'],
+				 ':USER_NAME' => $form_state['values']['access']['firstname'],
+				 ':USER_PATRONYMIC' => $form_state['values']['access']['patronname'],
+				 ':COMPANY_NAME' => $form_state['values']['access']['companyname'],
+				 ':COMPANY_ADDRESS' => $form_state['values']['access']['juraddress'],
+				 ':COMPANY_ACTUAL_ADDRESS' => $form_state['values']['access']['realaddress'],
+				 ':COMPANY_CONTACT' =>  $form_state['values']['access']['contact'],
+				 ':UID' => $user->uid
+		   ));*/
+		   
+		   //date("Y-m-d H:i:s", time())
+		   /*drupal_set_message('1: ' . $form_state['values']['responce']['resp11'], 'status');*/
+		   
+		   db_query('INSERT INTO t_reweiv (reweiv_date, from_user_id, to_user_id, reweiv_text, reweiv_rating)
+					VALUES (:reweiv_date, :from_user_id, :to_user_id, :reweiv_text, :reweiv_rating)', 
+					array(':reweiv_date' => date("Y-m-d H:i:s", time()), 
+					':from_user_id' => $user->uid,
+					':to_user_id' => $form_state['values']['shopid'],
+					':reweiv_text' => $form_state['values']['resp112'],
+					':reweiv_rating' => $form_state['values']['rating']));
+
+  drupal_set_message(t('Отзыв добавлен.'));
+  $form_state['rebuild'] = true;
+  cache_clear_all();
+					
+return $form;
+}
+
+
+?>

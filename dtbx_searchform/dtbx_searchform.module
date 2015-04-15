@@ -52,7 +52,31 @@ function dtbx_searchform_menu()
         'type' => MENU_CALLBACK,
     );
 	
+	// path with autocomplete function for searchvalue
+    $items['searchvalue/autocomplete'] = array(
+      'title' => 'Autocomplete for search',
+      'page callback' => '_searchvalue_autocomplete',
+	  'page arguments' => array(3),
+      'access arguments' => array('use autocomplete'),  //or whatever permission makes sense
+      'type' => MENU_CALLBACK
+    );
+	
 	return $items;
+}
+
+
+function _searchvalue_autocomplete($string) {
+  $matches = array();
+  //search table `cities` for cities that begin with the letters the user enters in the form
+  $result = db_query_range("SELECT product_name FROM {t_price_list_detail} WHERE LOWER(product_name) LIKE LOWER('%' || :product_name || '%')", 0, 10, array(':product_name' => $string));
+  
+  // add matches to $matches
+  foreach ($result as $data) 
+  {
+    $matches[$data->product_name] = check_plain($data->product_name);
+  }
+  // return for JS
+  return drupal_json_output($matches);
 }
 
 
@@ -62,19 +86,16 @@ function dtbx_searchform_menu()
 function dtbx_searchform_brend($brendid)
 {
 
-	$output = '<a href="/dtbx_searchform/">Поиск</a>';
-	//$output .= ("brendid=" . $brendid);
+	$output = '<a href="dtbx_searchform/">Поиск</a>';
 	
 	$result = db_query('select car_brend_name
 								 from t_car_brend
 								 where car_brend_id = :car_brend_id',
 								array(':car_brend_id' => $brendid));
 								
-								
-								
 	foreach($result as $item)
 	{
-		$output .= ('<main class="content title">' . $item->car_brend_name . '</main><ul class="list">');
+		$output .= ('<h1>' . $item->car_brend_name . '</h1>');
 	}
 	
 	$result_brend = db_query('select cm.car_model_id, cm.car_model_name
@@ -83,9 +104,8 @@ function dtbx_searchform_brend($brendid)
 								array(':car_brend_id' => $brendid));
 	foreach($result_brend as $item_brend)
 	{
-		$output .= (' <li><a href="/dtbx_searchform/model/' . $item_brend->car_model_id . '">' . $item_brend->car_model_name . '</a></li>');
-	}					
-	$output .= ('</ul>');							
+		$output .= (' <a href="dtbx_searchform/model/' . $item_brend->car_model_id . '">' . $item_brend->car_model_name . '</a>');
+	}							
 	
 	$form['markup'] = array(
 		'#prefix' => '<div id = "form-ajax-node-content">',
@@ -98,7 +118,7 @@ function dtbx_searchform_brend($brendid)
 }
 function dtbx_searchform_model($modelid){
 
-	$output = '<a href="/dtbx_searchform/">Поиск</a> &gt; ';
+	$output = '<a href="dtbx_searchform/">Поиск</a> &gt; ';
 	
 	$modelname = "";
 	$brendid = 0;
@@ -114,7 +134,7 @@ function dtbx_searchform_model($modelid){
 								
 	foreach($result_brend as $item_brend)
 	{
-		$output .= (' <a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a>');
+		$output .= (' <a href="dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a>');
 	}
 	
 	$output .= ('<h1>ModelName=' . $modelname . '<br>ModelID=' . $modelid . '</h1>');
@@ -152,13 +172,10 @@ function dtbx_searchform_page($form, &$form_state)
 	
 	$form['search'] = array(
 		'#type' => 'fieldset', 
-                '#attributes' => array('id' => array('search-module'))
-            
+		'#attributes' => array('class' => array('container-inline')), 
 	);
 	
 	$form['search']['searchtype'] = array(
-                '#title' => t('Тип:'),
-                '#attributes' => array('class' => array('left-search')),
 		'#type' => 'select', 
 		'#options' => $searchtypes
 	);
@@ -166,9 +183,9 @@ function dtbx_searchform_page($form, &$form_state)
 	
 	$form['search']['searchvalue'] = array(
 		'#type' => 'textfield', 
-                '#attributes' => array('placeholder' => array('Номер или наименование запчасти')),
 		'#size' => 100, 
-		'#maxlength' => 128
+		'#maxlength' => 128,
+		'#autocomplete_path' => 'searchvalue/autocomplete',
 	);
 	
 	
@@ -199,7 +216,7 @@ function dtbx_searchform_page($form, &$form_state)
 		
 		foreach($result_type as $item_type)
 		{
-			$output .= ('<div class="cartypeid' . $item_type->car_type_id . ' content padbl"><h1 class="title ico' . $item_type->car_type_id . '">' . $item_type->car_type_name . '</h1> <ul class="list">');
+			$output .= ('<h1>' . $item_type->car_type_name . '</h1>');
 			
 			$result_brend = db_query('select cb.car_brend_id, cb.car_brend_name
 								 from t_car_type_brend ctb,
@@ -212,9 +229,9 @@ function dtbx_searchform_page($form, &$form_state)
 								
 			foreach($result_brend as $item_brend)
 			{
-				$output .= (' <li><a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a></li>');
+				$output .= (' <a href="dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a>');
 			}
-			$output .= ('</ul></div>');						   
+									   
 		}
 	
 	}
@@ -310,7 +327,7 @@ function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
 		
 		$result = db_query($str_query);
 		$firsttime = true;
-		$orderbutton = '<a href="#">Заказать</a>';
+		$orderbutton = '<div class="orderbutton"><a href="#">Заказать</a></div>';
 		
 		foreach ($result as $item)
 		{
@@ -318,19 +335,19 @@ function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
 			{
 				$firsttime = false;
 				$output = '<link rel="stylesheet" type="text/css" href="' . $myown_path . '">
-				<div class="table-view search-page"><table><thead><tr><th class="first"></th><th>производитель</th><th>номер</th><th>наименование</th><th>обновление</th><th>количество</th><th>цена</th><th colspan=2>продавец</th></tr></thead><tbody>';
+				<table><thead><tr><th>производитель</th><th>номер</th><th>наименование</th><th>обновление</th><th>количество</th><th>цена</th><th colspan=2>продавец</th></tr></thead><tbody>';
 			}
 			$today = date("y-m-d");
-			$strdate = ($item->price_list_head_date == $today) ? "<span class=\"actual\"></span> Сегодня" : "<span class=\"actual inactual\"></span> $item->price_list_head_date";
-
-			$row = '<tr><td class="first"></td><td><a href="#">' . $item->ext_vendor_name . '</a></td><td>' . $item->product_code . '</td><td>' . $item->product_name . '</td><td class="update">' . $strdate . '</td><td><div class="pricediv">' . 
-					$item->product_count . ' шт.' . $orderbutton . '</div></td><td>' . $item->product_price . 'р.</td><td><a href="/dtbx_sellerinfo/' . $item->user_id . '/1"  title="" class="ctools-use-modal">' . $item->company_name . '</a></td><td>' . $item->user_rating . '</td></tr>';
+			$strdate = ($item->price_list_head_date == $today) ? "сегодня" : $item->price_list_head_date;
+		
+			$row = '<tr><td><a href="#">' . $item->ext_vendor_name . '</a></td><td>' . $item->product_code . '</td><td>' . $item->product_name . '</td><td>' . $strdate . '</td><td><div class="celltext">' . 
+					$item->product_count . ' шт.</div>' . $orderbutton . '</td><td>' . $item->product_price . 'р.</td><td><a href="dtbx_sellerinfo/' . $item->user_id . '/1"  title="" class="ctools-use-modal">' . $item->company_name . '</a></td><td>' . $item->user_rating . '</td></tr>';
 			$output .= $row;
 		}
 		if($firsttime)
-			$output = "Ничего не найдено...";
+			$output = "ничего не найдено...";
 		else
-			$output .= '</tbody></table></div>';
+			$output .= '</tbody></table>';
 	}
 	return $output;
 }
