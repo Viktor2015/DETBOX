@@ -201,13 +201,13 @@ function dtbx_sellerinfo_page($form, &$form_state)
   
   
   $records = db_query("SELECT * 
-					  FROM t_reweiv tr 
+					  FROM t_review tr 
 					  WHERE tr.to_user_id = :uid", array(':uid' => $items->user_id));
 					  
 	$output = "<table><tr><th>rating</th><th>date</th></tr>";				  
 	foreach ($records as $rec) {
 	
-		$output .= ('<tr><td>' . $rec->reweiv_rating . '</td><td>' . $rec->reweiv_date . '</td></tr>');
+		$output .= ('<tr><td>' . $rec->review_rating . '</td><td>' . $rec->review_date . '</td></tr>');
 		
 	}
 	$output .= "</table>";
@@ -322,13 +322,13 @@ function dtbx_sellerinfo_submit($form, &$form_state)
 		   //date("Y-m-d H:i:s", time())
 		   /*drupal_set_message('1: ' . $form_state['values']['responce']['resp11'], 'status');*/
 		   
-		   db_query('INSERT INTO t_reweiv (reweiv_date, from_user_id, to_user_id, reweiv_text, reweiv_rating)
-					VALUES (:reweiv_date, :from_user_id, :to_user_id, :reweiv_text, :reweiv_rating)', 
-					array(':reweiv_date' => date("Y-m-d H:i:s", time()), 
+		   db_query('INSERT INTO t_review (review_date, from_user_id, to_user_id, review_text, review_rating)
+					VALUES (:review_date, :from_user_id, :to_user_id, :review_text, :review_rating)', 
+					array(':review_date' => date("Y-m-d H:i:s", time()), 
 					':from_user_id' => $user->uid,
 					':to_user_id' => $form_state['values']['shopid'],
-					':reweiv_text' => $form_state['values']['resp112'],
-					':reweiv_rating' => $form_state['values']['rating']));
+					':review_text' => $form_state['values']['resp112'],
+					':review_rating' => $form_state['values']['rating']));
 
   drupal_set_message(t('Отзыв добавлен.'));
   $form_state['rebuild'] = true;
