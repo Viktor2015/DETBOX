@@ -56,7 +56,8 @@ function dtbx_searchform_menu()
     $items['searchvalue/autocomplete'] = array(
       'title' => 'Autocomplete for search',
       'page callback' => '_searchvalue_autocomplete',
-	  'page arguments' => array(2),
+      'page arguments' => array(2),
+      'access callback' => TRUE,	  
       'access arguments' => array('use autocomplete'), 
       'type' => MENU_CALLBACK
     );
@@ -89,8 +90,12 @@ function dtbx_searchform_brend($brendid)
 								 where car_brend_id = :car_brend_id',
 								array(':car_brend_id' => $brendid));
 								
+	
+								
 	foreach($result as $item)
 	{
+		$output .= '<br><br><br><a href="http://catalog.detbox.ru/' . strtolower($item->car_brend_name) . 
+		'/">Визуальный каталог<br><div style="width: 289px;border: solid 1px black;"><img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/Group.png"></div></a>';
 		$output .= ('<main class="content title">' . $item->car_brend_name . '</main><ul class="list">');
 	}
 	
@@ -148,6 +153,7 @@ function dtbx_searchform_model($modelid){
 function dtbx_searchform_page($form, &$form_state) 
 {
 	$output = "";
+	
 	if(isset($_GET['code']) && isset($_GET['type']) && isset($_GET['car']))
 	{
 		//drupal_set_message('Car=' . $_GET['car'] . ' type=' . $_GET['type'] . ' code=' . $_GET['code'], 'status');
@@ -284,6 +290,35 @@ function translit($input)
 
 function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
 {
+//Прока так потом вынести глобально!!!
+    global $user;
+	$l_user = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+	$ip = ip_address();
+	//drupal_set_message('start', 'status');
+	
+	$stat_search = db_query('select COUNT(*) AS cnt_query
+				   	         FROM t_stat_search ss
+                             WHERE (ss.user_id = :user_id or ss.user_id is null) and
+                                   ss.stat_search_ip = :stat_search_ip and
+                                   ss.stat_search_date BETWEEN DATE_ADD(NOW(),INTERVAL -1 MINUTE) AND NOW()',
+					        array(
+					          ':user_id' => (is_object($l_user))?$l_user->user_id:null,
+					          ':stat_search_ip' => $ip						
+						         )
+					        )->fetchObject();
+    //drupal_set_message('cnt: ' . $stat_search -> cnt_query, 'status');
+	if ($stat_search -> cnt_query > 3){
+	
+	    $output = "Сервис временно недоступен, попробуйте позже...";
+		return $output;
+		//exit();
+	}							
+					
+    //drupal_set_message('start', 'end');    					
+	
+	
+	
+	
 	$myown_path = $GLOBALS['base_url'] . '/css/myown.css';
 				
 	$str_query = "";
@@ -381,6 +416,19 @@ function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
 		else
 			$output .= '</tbody></table></div>';
 	}
+	
+// Запись статистики поиска
+   db_query('INSERT into t_stat_search 
+               (stat_search_date, stat_search_ip, stat_search_text, user_id)
+             VALUES 
+               (:stat_search_date, :stat_search_ip, :stat_search_text, :user_id)', 
+			   array(':stat_search_date' => date("y.m.d H:i:s"),
+			         ':stat_search_ip' => $ip,
+					 ':stat_search_text' => $partcode,
+					 ':user_id' => (is_object($l_user))?$l_user->user_id:null));
+  
+//
+	
 	return $output;
 }
 
