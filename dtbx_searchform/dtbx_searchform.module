@@ -56,7 +56,7 @@ function dtbx_searchform_menu()
     $items['searchvalue/autocomplete'] = array(
       'title' => 'Autocomplete for search',
       'page callback' => '_searchvalue_autocomplete',
-      'page arguments' => array(2),
+      //'page arguments' => array(2),
       'access callback' => TRUE,	  
       'access arguments' => array('use autocomplete'), 
       'type' => MENU_CALLBACK
@@ -66,9 +66,9 @@ function dtbx_searchform_menu()
 }
 
 
-function _searchvalue_autocomplete($string) {
+function _searchvalue_autocomplete() {
   $matches = array();
-  $result = db_query_range("SELECT product_name FROM {t_price_list_detail} WHERE LOWER(product_name) LIKE LOWER('%' || :product_name || '%')", 0, 10, array(':product_name' => $string));
+  $result = db_query_range("SELECT product_name FROM {t_price_list_detail} WHERE LOWER(product_name) LIKE LOWER('%' || :product_name || '%')", 0, 10, array(':product_name' => $_GET['term']));
   foreach ($result as $data) 
   {
     $matches[$data->product_name] = check_plain($data->product_name);	
@@ -192,8 +192,16 @@ function dtbx_searchform_page($form, &$form_state)
         '#attributes' => array('placeholder' => array('Номер или наименование запчасти')),
 		'#size' => 100, 
 		'#maxlength' => 128,
-		'#autocomplete_path' => 'searchvalue/autocomplete',
+		//'#autocomplete_path' => 'searchvalue/autocomplete',
 	);
+	
+	$form['#attached']['library'][] = array('system', 'ui.autocomplete');
+	$form['#attached']['js'][] = array(
+		'data' => 	'jQuery(
+						function(){jQuery(\'input[name="searchvalue"]\').autocomplete
+							({source: Drupal.settings.basePath + "searchvalue/autocomplete"});});', 
+					'type' => 'inline');
+ 
 	
 	
 	$form['search']['submit'] = array(
