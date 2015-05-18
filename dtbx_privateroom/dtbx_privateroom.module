@@ -313,7 +313,7 @@ function dtbx_privateroom_page($form, &$form_state)
 
   $form['pl']['table'] = array(
     '#tree' => TRUE,
-    '#theme' => 'dtbx_privateroom_table', // функция, с помощью которой мы будем придавать форме табличный вид
+    '#theme' => 'dtbx_privateroom_table',
   );
  
   $form['pl']['table']['header'] = array(
@@ -355,9 +355,28 @@ function dtbx_privateroom_page($form, &$form_state)
       '#required' => false
     );
 //////
- $form['pl']['table']['data'][$rec->price_list_head_id]['del'][] = array(
+	$form['pl']['table']['data'][$rec->price_list_head_id]['del'][] = array(
       '#markup' => l(t('удалить'), 'dtbx_privateroom/delete/' .  $rec->price_list_head_id, array('alias' => true))
 	);
+	
+	
+	$form['pl']['file'] = array(
+		'#type' => 'file',
+		'#title' => 'Прайс-лист',
+		'#description' => 'Выберите файл с расширением csv',
+	  );
+	  
+	/*  
+	$form['pl']['file'] = array(
+		'#type' => 'managed_file',
+		'#title' => t('price list'),
+		'#description' => t('Allowed extensions: csv xls xml txt'),
+		'#upload_location' => 'public://uploads/',
+		'#upload_validators' => array(
+			'file_validate_extensions' => array('csv xls xml txt'),
+		),
+	);*/
+	
 	
  /*
  $form['pl']['table']['data'][$rec->price_list_head_id]['del'] = array(
@@ -415,15 +434,15 @@ function dtbx_privateroom_delete_pl($form, &$form_state, $pl_id){
         '#value' => $pl_id,
     );
     
-    $rows = array();
-  
+	$rows = array();
+  /*
     foreach (element_children($form_state['values']) as $key) {
       foreach (element_children($form['data'][$key]) as $name) {
         //drupal_set_message($form['data'][$key][$name], 'status');
 		drupal_set_message($name, 'status');
       }
     }	
-	
+	*/
     $form['#submit'][] = 'dtbx_privateroom_delete_submit';
 	
     return confirm_form($form,
@@ -437,20 +456,27 @@ function dtbx_privateroom_delete_pl($form, &$form_state, $pl_id){
 
 function dtbx_privateroom_delete_submit($form, &$form_state) {
    $pl_id = $form_state['values']['del_pl_id'];
-   $user_id = $form_state['values']['user_id'];
+  //$user_id = $form_state['values']['user_id'];
    
-   db_query('update t_price_list_head1 plh
-			    set plh.is_posted = 1
-			  where plh.user_id =' . $user_id . 'and
-			        plh.price_list_head_id = ' . $pl_id);
-/*
-  db_query('delete from t_price_list_detail pld
-   		     where pld.price_list_head_id = ' . $pl_id);
+   	global $user;
+	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+    $user_id = $items -> user_id; 
+	
+   /*db_query('update t_price_list_head plh
+			    set plh.is_posted = 0
+			  where plh.user_id =' . $user_id . ' and
+			        plh.price_list_head_id = ' . $pl_id);*/
 
-  db_query('delete from t_price_list_head plh
-   		     where plh.price_list_head_id = ' . $pl_id);
-			 
-*/
+  db_query('delete from t_price_list_detail
+			where t_price_list_detail.price_list_head_id = ' . $pl_id . ' and
+				  exists (select *
+						  from t_price_list_head plh
+						  where plh.user_id = 6 and
+								plh.price_list_head_id = t_price_list_detail.price_list_head_id) ');
+
+  db_query('delete from t_price_list_head
+   		     where price_list_head_id = ' . $pl_id. ' and 
+				   user_id =' . $user_id);
    
    drupal_set_message('Прайс-лист № ' . $pl_id . ' удален!');
    drupal_goto('dtbx_privateroom');
@@ -490,6 +516,21 @@ function dtbx_privateroom_access() {
 
 function dtbx_privateroom_profile_validate($form, &$form_state) {
 	global $user;
+
+ /// file upload
+	drupal_set_message('start validation', 'status');
+	$validators = array(
+		'file_validate_extensions' => array('csv xls xml'),
+	);
+	if ($file = file_save_upload('pl', $validators, 'public://')) {
+		drupal_set_message('file uploaded', 'status');
+		$form_state['values']['file'] = $file; 
+	} else
+	{
+		drupal_set_message('not file uploaded', 'error');
+	}
+	//////////////////
+	
  //Профиль   
 	//drupal_set_message('validate', 'status');
 	
@@ -530,7 +571,78 @@ function dtbx_privateroom_profile_validate($form, &$form_state) {
 
 function dtbx_privateroom_submit($form, &$form_state) {
   global $user;
- 
+   //////// file upload
+	if(isset($form_state['values']['file']))
+	{
+		$file = $form_state['values']['file'];
+		$file->status = FILE_STATUS_PERMANENT; // Изменяем статус файла на "Постоянный"
+		file_save($file); // Сохраняем новый статус
+
+		$filepath = drupal_realpath($file->uri);
+		//$file_contents = file_get_contents($filepath);
+		drupal_set_message($filepath, 'status');
+		$handle = fopen($filepath, "r");
+		$datalines = array();
+		$count = 0;
+		if ($handle) 
+		{
+			while (($line = fgets($handle)) !== false) 
+			{
+				// process the line read.
+				//drupal_set_message($line, 'status');
+				$datalines[] = $line;
+				$count++;
+			}
+			fclose($handle);
+		} 
+		else 
+		{
+			// error opening the file.
+			drupal_set_message('error opening the file', 'error');
+		} 
+		
+		if(count($datalines) > 0)
+		{
+			$l_user = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+			
+			
+			$query = 'insert into detbox.t_price_list_head 
+					(price_list_head_date, user_id, currency_id, is_posted, price_list_head_comment, price_list_head_terms) 
+					values 
+					(\'' . date("Y-m-d H:i:s") . '\', ' . $l_user->user_id . ', 1, 1, \'\' , \'\')';
+					//:price_list_head_date , :user_id, 1, 1, :price_list_head_comment, :price_list_head_terms
+			db_query($query);	
+			$q_id = db_query('select last_insert_id() as plh_id')->fetchObject();
+			
+			drupal_set_message('UserID=' . $q_id->plh_id, 'status');
+			$count1=0;
+			foreach($datalines as $oneline) 
+			{
+				if($count1 != 0)
+				{
+					$lineitems = explode(";", $oneline);
+					$prodcode = isset($lineitems[0]) ? $lineitems[0] : "";
+					$prodname = isset($lineitems[1]) ? str_replace("'", " ", $lineitems[1]) : "";
+					$prodcount = isset($lineitems[2]) ? $lineitems[2] : 0;
+					$prodprice = isset($lineitems[3]) ? str_replace(",", ".", $lineitems[3]) : 0.0;
+					$vendorname = isset($lineitems[4]) ? $lineitems[4] : "";
+					$query = 'insert into t_price_list_detail 
+					(price_list_head_id, product_code, product_name, product_count, product_price, vendor_id, ext_vendor_name) 
+					values 
+					(' . $q_id->plh_id . ', \'' . $prodcode . '\', \'' . $prodname . '\', ' . $prodcount . ' , ' . $prodprice . ',1 , \'' . $vendorname . '\')';
+					drupal_set_message($query, 'status');
+					db_query($query);
+				}
+				$count1++;
+			}
+			drupal_set_message($count . ' = ' . $count1, 'status');
+		}
+		
+		
+		return;
+	}
+  //////////////////////
+
  //Профиль
   $account = clone $user;
   

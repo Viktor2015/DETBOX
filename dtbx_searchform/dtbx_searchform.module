@@ -3,11 +3,9 @@
 function dtbx_searchform_init()
 {
  static $already_added = FALSE;
-  //drupal_set_message('+', 'status');
-  
-  //$code_path = $GLOBALS['base_url'] . '/misc/code.js';
-  //drupal_add_js($code_path);
-  
+	ctools_include('modal');
+	ctools_include('ajax');
+	ctools_modal_add_js();
   if ($already_added) {
     return; // Don't add the JavaScript and CSS multiple times.
   }	  
@@ -40,6 +38,38 @@ function dtbx_searchform_menu()
         'title' => 'Поиск модели',
         'access callback' => TRUE,
         'page callback' => 'dtbx_searchform_model',
+		'page arguments' => array(2, 3),
+        'type' => MENU_CALLBACK,	
+	);
+	
+	$items['dtbx_searchform/type/%'] = array(
+        'title' => 'Поиск модели',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_type',
+		'page arguments' => array(2, 3),
+        'type' => MENU_CALLBACK,	
+	);
+	
+	$items['dtbx_searchform/tires/%'] = array(
+        'title' => 'Поиск шин',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_tires',
+		'page arguments' => array(2),
+        'type' => MENU_CALLBACK,	
+	);
+	
+	$items['dtbx_searchform/batteries/%'] = array(
+        'title' => 'Поиск аккумуляторов',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_batteries',
+		'page arguments' => array(2),
+        'type' => MENU_CALLBACK,	
+	);
+	
+	$items['dtbx_searchform/oils/%'] = array(
+        'title' => 'Поиск масел',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_oils',
 		'page arguments' => array(2),
         'type' => MENU_CALLBACK,	
 	);
@@ -52,6 +82,22 @@ function dtbx_searchform_menu()
         'type' => MENU_CALLBACK,
     );
 	
+	$items['dtbx_searchform/partgroup/%/%/%'] = array(
+        'title' => 'Поиск группы',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_partgroup',
+		'page arguments' => array(2, 3, 4),
+        'type' => MENU_CALLBACK,	
+	);
+
+	$items['dtbx_searchform/info/%/%/%/%ctools_js'] = array(
+        'title' => 'Поиск группы',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_searchform_info',
+		'page arguments' => array(2, 3, 4, 5),
+        'type' => MENU_CALLBACK,	
+	);
+	
 	// path with autocomplete function for searchvalue
     $items['searchvalue/autocomplete'] = array(
       'title' => 'Autocomplete for search',
@@ -61,6 +107,7 @@ function dtbx_searchform_menu()
       'access arguments' => array('use autocomplete'), 
       'type' => MENU_CALLBACK
     );
+	
 	
 	return $items;
 }
@@ -83,7 +130,8 @@ function _searchvalue_autocomplete() {
 function dtbx_searchform_brend($brendid)
 {
 
-	$output = '<a href="/dtbx_searchform/">Поиск</a>';
+	//$output = '<a href="/dtbx_searchform/">Поиск</a>';
+	$output = '';
 	
 	$result = db_query('select car_brend_name
 								 from t_car_brend
@@ -96,12 +144,14 @@ function dtbx_searchform_brend($brendid)
 	{
 		$output .= '<br><br><br><a href="http://catalog.detbox.ru/' . strtolower($item->car_brend_name) . 
 		'/">Визуальный каталог<br><div style="width: 289px;border: solid 1px black;"><img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/Group.png"></div></a>';
-		$output .= ('<main class="content title">' . $item->car_brend_name . '</main><ul class="list">');
+		//$output .= ('<main class="content title">' . $item->car_brend_name . '</main><ul class="list">');
+		$output .= ('<main class="content title">' . $item->car_brend_name . '</main><ul>');
 	}
 	
 	$result_brend = db_query('select cm.car_model_id, cm.car_model_name
-								 from t_car_model cm
-								 where cm.car_brend_id = :car_brend_id',
+								 from v_car_model cm
+								 where cm.car_brend_id = :car_brend_id
+								 order by cm.car_model_name',
 								array(':car_brend_id' => $brendid));
 	foreach($result_brend as $item_brend)
 	{
@@ -118,28 +168,123 @@ function dtbx_searchform_brend($brendid)
 	return $form;
 
 }
-function dtbx_searchform_model($modelid){
 
-	$output = '<a href="/dtbx_searchform/">Поиск</a> &gt; ';
+
+function dtbx_searchform_batteries($batid)
+{
+	$url = 'http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/';
+	drupal_add_js($url . 'bc/jquery.js');
+	drupal_add_js($url . 'batteriefinder.js');
 	
-	$modelname = "";
-	$brendid = 0;
 	
-	$result = db_query('select * from t_car_model where car_model_id = :car_model_id', array(':car_model_id' => $modelid));
+	$output = 'Аккумуляторные батареи<br><br>';
+	$result = db_query('select pg.product_property_id, pg.product_property_name from t_product_property pg
+						where pg.is_visible = 1 and exists (select * from t_product_group_property_link pgpl where pgpl.product_property_id = pg.product_property_id 
+						and pgpl.product_group_id = 2)');
+	$count = 0;
+	$params = "";
 	foreach($result as $item)
 	{
-		$modelname = $item->car_model_name;
-		$brendid = $item->car_brend_id;
-	}
+		$params .= ((($count++ > 0) ? '_': '') . $item->product_property_id);
+		$output .= ('<h2>' . $item->product_property_name . ':</h2>');
+		$result1 = db_query('select pv.product_property_value_id, pv.product_property_value_name from t_product_property_value pv
+							where pv.product_property_id = ' . $item->product_property_id);
+		$output .= '<select name="prop_' . $item->product_property_id . '" id="prop_' . $item->product_property_id . '" style="width: 200px;">';
+		foreach($result1 as $item1)
+		{
+			$output .= ('<option value="' . $item1->product_property_value_id . '">' . $item1->product_property_value_name . '</option>');
+		}
+		$output .= '</select><br/>';
+	}				
+			
+	$output .= '<br/><a href="#" onclick="findbatteries(\'' . $params . '\')">Найти аккумулятор</a>';					
+
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+/*	
+	$url = 'http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/bats/';
+	drupal_add_js($url . 'bc/jquery.js');
+	drupal_add_js($url . 'bc/javascript.js');
+	drupal_add_js($url . 'finder.js');
 	
-	$result_brend = db_query('select * from t_car_brend where car_brend_id = :car_brend_id', array(':car_brend_id' => $brendid));
-								
-	foreach($result_brend as $item_brend)
+	$output = 'Подбор : <a href="' . $url . 'index.php">Аккумуляторы</a>';
+	$output .= '<link href="' . $url . 'bc/style.css" rel="stylesheet" type="text/css" />
+    <script>var ABSOLUTE_URL_TO_AJAX_FILE_BATTERY = "' . $url . 'bc/ajax.php";</script>';
+	
+	
+	$output .= '<br/><br/><h2>Напряжение:</h2>
+	<select name="bat_voltage" id="bat_voltage" style="width: 200px;"><option value="0" selected >-</option>';
+	$result = db_query('select * from filter_batteries.bc_batteries_voltages_dict');
+	foreach($result as $item)
 	{
-		$output .= (' <a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a>');
+		$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
 	}
+	$output .= '</select><br/>';
 	
-	$output .= ('<h1>ModelName=' . $modelname . '<br>ModelID=' . $modelid . '</h1>');
+	$output .= '<h2>Полярность:</h2>
+	<select name="bat_polarity" id="bat_polarity" style="width: 200px;"><option value="0" selected >-</option>';
+	$result = db_query('select * from filter_batteries.bc_batteries_polarities_dict');
+	foreach($result as $item)
+	{
+		$output .= ('<option value="' . t($item->id) . '">' . t($item->value) . '</option>');
+	}
+	$output .= '</select><br/>';
+	
+	$output .= '<h2>Мощность/Ёмкость:</h2>
+	<select name="bat_capacity" id="bat_capacity" style="width: 200px;"><option value="0" selected >-</option>';
+	$result = db_query('select * from filter_batteries.bc_batteries_capacities_dict');
+	foreach($result as $item)
+	{
+		$output .= ('<option value="' . t($item->id) . '">' . t($item->value) . '</option>');
+	}
+	$output .= '</select><br/><a href="#" onclick="findbattery()">Найти аккумулятор</a>';
+
+
+	$output .= '<div id="bc_filter_batteries_form"></div><div id="bc_filter_batteries_results"></div>';
+
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+*/
+}
+
+function dtbx_searchform_oils($oilid)
+{
+	$url = 'http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/';
+	drupal_add_js($url . 'bc/jquery.js');
+	drupal_add_js($url . 'oilfinder.js');
+	
+	
+	$output = 'масла<br><br>';
+	$result = db_query('select pg.product_property_id, pg.product_property_name from t_product_property pg
+						where pg.is_visible = 1 and exists (select * from t_product_group_property_link pgpl where pgpl.product_property_id = pg.product_property_id 
+						and pgpl.product_group_id = 1)');
+	$count = 0;
+	$params = "";
+	foreach($result as $item)
+	{
+		$params .= ((($count++ > 0) ? '_': '') . $item->product_property_id);
+		$output .= ('<h2>' . $item->product_property_name . ':</h2>');
+		$result1 = db_query('select pv.product_property_value_id, pv.product_property_value_name from t_product_property_value pv
+							where pv.product_property_id = ' . $item->product_property_id);
+		$output .= '<select name="prop_' . $item->product_property_id . '" id="prop_' . $item->product_property_id . '" style="width: 200px;">';
+		foreach($result1 as $item1)
+		{
+			$output .= ('<option value="' . $item1->product_property_value_id . '">' . $item1->product_property_value_name . '</option>');
+		}
+		$output .= '</select><br/>';
+	}				
+			
+	$output .= '<br/><a href="#" onclick="findoils(\'' . $params . '\')">Найти масло</a>';					
 
 	$form['markup'] = array(
 		'#prefix' => '<div id = "form-ajax-node-content">',
@@ -150,9 +295,882 @@ function dtbx_searchform_model($modelid){
 	return $form;
 }
 
-function dtbx_searchform_page($form, &$form_state) 
+function dtbx_searchform_tires($tiresid)
 {
-	$output = "";
+	$url = 'http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/';
+	drupal_add_js($url . 'bc/jquery.js');
+	drupal_add_js($url . 'bc/javascript.js');
+	drupal_add_js($url . 'finder.js');
+	
+
+	$tirname = "";
+	switch($tiresid)
+	{
+	case 1: $tirname = "Шины";
+	break;
+	case 2: $tirname = "Масла";
+	break;
+	case 3: $tirname = "Диски";
+	break;
+	case 4: $tirname = "Аккумуляторы";
+	break;
+	}
+				
+	$output = 'Подбор : <a href="' . $url . 'index.php">' . $tirname . '</a>';
+	
+	
+	
+	$output .= '<link href="' . $url . 'bc/style.css" rel="stylesheet" type="text/css" />
+    <script>var ABSOLUTE_URL_TO_AJAX_FILE_TIRE = "' . $url . 'bc/ajax.php";
+			var TIRES_TYPE = ' . $tiresid . '</script>';
+			
+	
+	$output .= '<br><br>';
+	if($tiresid == 1 || $tiresid == 3)
+	{
+		if($tiresid == 1)
+		{
+			$output .= '<h2>Ширина:</h2>
+			<select name="tire_width" id="tire_width" style="width: 200px;"><option value="0" selected >-</option>';
+			$result = db_query('select * from v_tire_widths order by concat(substring(\'0000000000\', 1, 10 - length(value)), value)');
+			foreach($result as $item)
+			{
+				$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
+			}
+			$output .= '</select><br/>';
+
+			$output .= '<h2>Высота:</h2>
+			<select name="tire_height" id="tire_height" style="width: 200px;"></select><br/>';
+
+			$output .= '<h2>Диаметр:</h2>
+			<select name="tire_diam" id="tire_diam" style="width: 200px;"></select><br/>';
+		}
+		else
+		{
+			$output .= '<h2>Размер:</h2>
+			<select name="wheel_width" id="wheel_width" style="width: 100px;"><option value="0" selected >Ширина</option>';
+			$result = db_query('select id, value from filter_tires.bc_tires_wheel_rims_dict order by concat(substring(\'0000000000\', 1, 10 - length(value)), value)');
+			foreach($result as $item)
+			{
+				$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
+			}
+			$output .= '</select>&nbsp;';
+			
+			$output .= '<select name="wheel_diam" id="wheel_diam" style="width: 100px;"><option value="0" selected >Диаметр</option>';
+			$result = db_query('select id, value from filter_tires.bc_tires_wheel_diameters_dict');
+			foreach($result as $item)
+			{
+				$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
+			}
+			$output .= '</select><br>';
+			
+			$output .= '<h2>Отверстия:</h2>
+			<select name="stud_number" id="stud_number" style="width: 100px;"><option value="0" selected >Кол-во</option>';
+			$result = db_query('select id, value from filter_tires.bc_tires_wheel_pcd_number_of_studs_dict');
+			foreach($result as $item)
+			{
+				$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
+			}
+			$output .= '</select>&nbsp;';
+			
+			$output .= '<select name="stud_diam" id="stud_diam" style="width: 100px;"><option value="0" selected >Диаметр</option>';
+			$result = db_query('select id, value from filter_tires.bc_tires_wheel_pcd_length_of_diameters_dict');
+			foreach($result as $item)
+			{
+				$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
+			}
+			$output .= '</select><br>';
+			
+			$output .= '<h2>Вылет:</h2><select name="wheel_ets" id="wheel_ets" style="width: 100px;"><option value="0" selected >Размер</option>';
+			$result = db_query('select id, value from filter_tires.bc_tires_wheel_ets_dict order by value + 1000');
+			foreach($result as $item)
+			{
+				$output .= ('<option value="' . $item->id . '">' . $item->value . '</option>');
+			}
+			$output .= '</select>&nbsp;<a href="#" onclick="findwheels()">Найти диски</a>';
+			
+		}
+		$output .= '<div id="bc_filter_tires_form"></div><div id="bc_filter_tires_results"></div>';
+	}
+	else if($tiresid == 2)
+	{
+	
+	}
+	else if($tiresid == 4)
+	{
+	
+	}
+	
+	
+	
+	
+	
+	
+	
+	if(isset($_GET['diameter']))
+	{
+		$output .= '<span id="catalog_anchor">&nbsp;</span>
+		<h1>Results fitting tires by auto</h1>
+		<b>Sent request to filter:</b><br />
+		<div style="margin-left: 20px;">
+			<table>';
+			
+			ksort($_REQUEST);
+			foreach($_REQUEST as $key => $value)
+			{
+				$output .= '<tr><td><strong style="color: #444;">' . ucfirst(str_replace('_', ' ', $key)) . '</strong></td>
+				<td width="10px">&nbsp;</td>
+				<td>' . htmlspecialchars(str_replace('_', ' ', $value)) . '</td></tr>';
+			}
+			$output .= '</table></div>';
+	}
+	
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+}
+
+
+function dtbx_searchform_model($modelid, $typeid){
+	
+	//$output = '<a href="/dtbx_searchform/">Поиск</a> &gt; ';
+	$output = ('<ul>');	
+	
+	$result_model = db_query('select cm.car_model_name from v_car_model cm where cm.car_model_id = :car_model_id', array(':car_model_id' => $modelid))->fetchObject();
+
+	$output .= $result_model -> car_model_name;
+ 	
+	
+	$result_type = db_query('select cmt.car_model_type_id, 
+							              cmt.car_model_id,
+							              cmt.car_model_type_name
+						             from detbox.v_car_model_type cmt
+						            where cmt.car_model_id = :car_model_id
+									order by cmt.car_model_type_name', array(':car_model_id' => $modelid));
+	
+	foreach($result_type as $item_type)
+	{
+		$output .= ($typeid == $item_type->car_model_type_id) ? ' <li type="disc">' : '<li type="circle">';
+		$output .= ('<a href="/dtbx_searchform/type/' . 
+			  		  $item_type->car_model_id . '/' . $item_type->car_model_type_id .'">' . 
+					  $item_type->car_model_type_name . 
+					  '</a></li>');
+	}							
+	
+	$output .= ('</ul>');	
+	
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+}	
+	
+
+function dtbx_searchform_type($modelid, $typeid) {
+	
+	drupal_add_js('misc/jquery.min.js');
+	drupal_add_js('misc/jstree.min.js');
+	drupal_add_css('misc/style.min.css');
+	$output = '<table width=100%><tr><td width=15%>';
+	
+	$form_model = dtbx_searchform_model($modelid, $typeid);
+	
+	$output .= drupal_render($form_model);
+	
+	$output .= '</td><td width=85%>';
+	
+	//drupal_add_js('misc/jquery.easyui.min.js');
+
+	//$output .= '<a href="/dtbx_searchform/">Поиск</a> » ';//&gt
+	
+	
+	$result = db_query('SELECT cn.*
+						from v_car_node cn
+						ORDER BY cn.STR_SORT');
+	
+	
+	$prev_name = "";
+	$prev_level = 2;
+	$previd = 0;
+	$output .= ('<div id="html" class="demo">' . "\n" . '<ul>' . "\n");
+	//$firsttime = true;
+
+	foreach($result as $item)
+	{
+		$strurl = '/dtbx_searchform/partgroup/parts/'. $typeid . '/' . $previd . '/';
+		$onclick = ' onclick="window.open(\'' . $strurl . '\',\'_self\')"';
+
+		if($item->STR_LEVEL == $prev_level)
+		{
+			if($prev_name != "")
+			{
+  			    $output .= ('<li><a href="/' . $previd . '"' . $onclick . '>' . $prev_name . '</a></li>' . "\n");
+				
+			}
+		}
+		else if($item->STR_LEVEL > $prev_level)
+		{
+			//$li = $firsttime ? '<li data-jstree=\'{"opened":true}\'>' : '<li>';
+			$li = '<li data-jstree=\'{"opened":false}\'>';
+			//$firsttime = false;
+			//$output .= ($li . '<a href="/' . $previd . '"' . $onclick . '>2' . $prev_name . "</a>\n" . '<ul>' . "\n");
+			$output .= ($li . '<a href="/' . $previd . '"' . '>' . $prev_name . "</a>\n" . '<ul>' . "\n");
+
+		}
+		else if($item->STR_LEVEL < $prev_level)
+		{
+			$output .= ('<li><a href="/' . $previd . '"' . $onclick . '>' . $prev_name . '</a></li>' . "\n");
+			
+			
+			while($prev_level > $item->STR_LEVEL)
+			{
+				$output .= ('</ul>' . "\n" . '</li>' . "\n");
+				$prev_level--;
+			}
+		}
+		
+		$prev_name = $item->TEX_TEXT;
+		$prev_level = $item->STR_LEVEL;
+		$previd = $item->STR_ID;
+	}
+	
+	$output .= ('<li>' . $prev_name . '</li>' . "\n");
+			
+	while($prev_level > 1)
+	{
+		$output .= ('</ul>' . "\n" . '</li>' . "\n");
+		$prev_level--;
+	}
+	
+	$output .= '</ul></div><script>$("#html").jstree();</script>';
+	
+	$output .= '</td></tr></table>';
+	
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+	return $form;
+}
+function dtbx_searchform_partgroup($type, $typeid, $pgid)
+{
+	$detail = false;
+	
+// ЗАПЧАСТИ	
+	if(strpos($type, 'parts') !== false)
+	{
+		/*ОРИНГИНАЛ*/
+		$detail = db_query('select  
+							   br.BRA_ID, 
+							   br.BRA_BRAND,
+							   (SELECT dt.TEX_TEXT
+								FROM tecdoc.tof_designations des,
+									 tecdoc.tof_des_texts dt	  	     
+								WHERE des.DES_TEX_ID = dt.TEX_ID and 
+									  des.DES_ID = art.ART_COMPLETE_DES_ID AND
+									  des.DES_LNG_ID = 16) as TEX_TEXT, 
+								al.ARL_SEARCH_NUMBER,
+								max(art.ART_ID) as ART_ID,
+								llt.LAT_GA_ID
+						from (select * from tecdoc.tof_link_ga_str lgs where lgs.lgs_str_id = :LGS_STR_ID) lgs,
+	 					     (select llt.*  from tecdoc.tof_link_la_typ llt where llt.lat_typ_id = :LAT_TYP_ID) llt,
+							 (select br.*
+							  from tecdoc.tof_types t,
+								   tecdoc.tof_models md,
+								   tecdoc.tof_manufacturers mn,
+								   tecdoc.tof_brands br
+							  where t.TYP_MOD_ID = md.MOD_ID and
+							  		md.MOD_MFA_ID = mn.MFA_ID and
+							   		br.BRA_MF_NR = mn.MFA_MF_NR and
+							   		t.TYP_ID = :LAT_TYP_ID) br,
+							  tecdoc.tof_link_art la,
+							  tecdoc.tof_art_lookup al,
+							  tecdoc.tof_articles art
+						where lgs.lgs_ga_id = llt.lat_ga_id and
+							  llt.lat_la_id = la.LA_ID AND
+							  la.LA_ART_ID = al.ARL_ART_ID AND
+							  al.ARL_ART_ID = art.ART_ID AND
+							  br.BRA_ID = al.ARL_BRA_ID + 0 and
+							  al.ARL_KIND = 3
+						group by 1, 2, 3, 4, 6	  
+						order by 4',  
+	                    array(':LAT_TYP_ID' => $typeid, ':LGS_STR_ID' => $pgid));
+	
+		$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=4>ОРИГИНАЛЬНЫЕ НОМЕРА</th></tr></thead><tbody id="fbody">';
+	
+		$bernd_name = '';
+		foreach($detail as $item)
+		{
+			$articul = 2000;
+			$link = ctools_modal_text_button($item -> ARL_SEARCH_NUMBER, '/dtbx_searchform/info/article/' . $item -> ART_ID . '/' . $item -> LAT_GA_ID . '/nojs', '', 'ctools-modal-modal-popup-medium');
+		
+			$output .= '<tr><td>' . (($item -> BRA_BRAND == $bernd_name)? '' : $item -> BRA_BRAND) . 
+				  '</td><td>' . $link . '</a>' .
+				  '</td><td>' . $item -> TEX_TEXT . 
+				  '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+			$bernd_name = $item -> BRA_BRAND;
+		}
+	
+		$output .= '</tbody></table>';
+	
+		/*АНАЛОГИ*/
+		$detail = db_query('select distinct 
+									   sp.SUP_ID , 
+									   sp.SUP_BRAND,
+									   (SELECT dt.TEX_TEXT
+										FROM tecdoc.tof_designations des,
+											 tecdoc.tof_des_texts dt	  	     
+										WHERE des.DES_TEX_ID = dt.TEX_ID and 
+											  des.DES_ID = art.ART_COMPLETE_DES_ID AND
+											  des.DES_LNG_ID = 16) as TEX_TEXT, 
+										art.ART_ARTICLE_NR,
+										art.ART_ID,
+										llt.LAT_GA_ID
+								from (select * from tecdoc.tof_link_ga_str lgs where lgs.lgs_str_id = :LGS_STR_ID) lgs,
+									  (select llt.*  from tecdoc.tof_link_la_typ llt where llt.lat_typ_id = :LAT_TYP_ID) llt,
+									  tecdoc.tof_suppliers sp,
+									  tecdoc.tof_link_art la,
+								-- 	  tecdoc.tof_art_lookup al,
+									  tecdoc.tof_articles art
+								where lgs.lgs_ga_id = llt.lat_ga_id and
+									  llt.lat_la_id = la.LA_ID AND
+									  la.LA_ART_ID = art.ART_ID AND
+									  llt.LAT_SUP_ID = sp.SUP_ID
+								order by 3, 2',  
+								array(':LAT_TYP_ID' => $typeid, ':LGS_STR_ID' => $pgid));
+	
+		$output .= '<div class="table-view search-page"><table><thead>
+		       <tr><th class="proizv"></th><th class="proizv"></th><th></th><th></th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=4>АНАЛОГИ</th></tr></thead><tbody id="fbody">';
+	
+		$bernd_name = '';
+		foreach($detail as $item)
+		{
+			$articul = 2000;
+			$link_art = ctools_modal_text_button($item -> ART_ARTICLE_NR, '/dtbx_searchform/info/article/' . $item -> ART_ID . '/' . $item -> LAT_GA_ID . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_sup = ctools_modal_text_button($item -> SUP_BRAND, '/dtbx_searchform/info/supplier/' . $item -> SUP_ID . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			//'</td><td><a href="/dtbx_searchform/info/' . $articul . '/1/" class="ctools-use-modal ctools-modal-modal-popup-medium">' . $item -> ART_ARTICLE_NR . '</a>' .
+		
+			$output .= '<tr><td>' . (($item -> SUP_BRAND == $bernd_name)? '' : $link_sup) .
+				   '</td><td>'. $link_art . '</a>' .
+				   '</td><td>' . $item -> TEX_TEXT . // $tcri .
+				   '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+			$bernd_name = $item -> SUP_BRAND;
+		}
+		$output .= '</tbody></table>';
+
+	}
+	else 
+
+// ДИСКИ		
+	if(strpos($type, 'wheels') !== false)
+	{
+		$beg = strpos($type, '(') +1;
+		$end = strpos($type, ')');
+		$strparams = substr($type, $beg, $end - $beg);
+	
+		$params = explode(',', $strparams);
+		//6,15,4,108,27
+		$detail = db_query('select bw.id,
+								   bw.brand,
+								   bw.pcd,
+								   concat(bw.model, \'<br>\', bw.rim, \'x\', bw.diameter, \'/\',  bw.pcd, \' \', bw.et) tex_text,
+								   not ISNULL(bw.photo_1) as is_photo
+							from filter_tires.bc_shop_wheels bw
+							where bw.diameter = :diameter and
+								  bw.pcd = concat(:cpcd, \'x\', :dpcd) and
+								  bw.rim = :rim and
+								  bw.et = :et',
+							array(':diameter' => $params[1], 
+								  ':dpcd' => $params[3], 
+								  ':cpcd' => $params[2], 
+								  ':rim' => $params[0],
+								  ':et' => $params[4]));
+		$output = '<div class="table-view search-page"><table><thead>
+				   <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
+				   <tr bgcolor=#F6F5F7><th colspan=4>ДИСКИ</th></tr></thead><tbody id="fbody">';
+	
+		$bernd_name = '';
+		foreach($detail as $item)
+		{
+			$articul = 2000;
+			$link_art = ctools_modal_text_button($item -> id, '/dtbx_searchform/info/' . $type . '/' . $item -> id . '/' . $item -> id . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_sup = ctools_modal_text_button($item -> brand, '/dtbx_searchform/info/supplier/' . $item -> id . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_photo = ctools_modal_text_button('<img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/photo.png">', '/dtbx_searchform/info/wheels_photo/' . $item -> id . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			
+			$isphoto = ($item -> is_photo == 1) ? '<br>' . $link_photo : '';
+
+			$output .= '<tr><td>' . (($item -> brand == $bernd_name)? '' : $link_sup) .
+				   '</td><td>'. $link_art . $isphoto . '</a>' .
+				   '</td><td>' . $item -> tex_text . // $tcri .
+				   '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+			$bernd_name = $item -> brand;
+		}
+		$output .= '</tbody></table>';							
+	
+	}
+	else 
+// ШИНЫ
+	if(strpos($type, 'tires') !== false)
+	{
+		$beg = strpos($type, '(') +1;
+		$end = strpos($type, ')');
+		$strparams = substr($type, $beg, $end - $beg);
+	
+		$params = explode(',', $strparams);
+		
+		$detail = db_query('select bs.id,
+								   bs.brand,
+								   concat(bs.model, \'<br>\', 
+								   bs.width, \'/\', bs.height, \'/\', bs.diameter, \'<br>\',
+								   bs.season, \'<br>\', bs.load_index, bs.speed_index) tex_text,
+								   not ISNULL(bs.photo_1) as is_photo
+							from filter_tires.bc_shop_tires bs
+							where bs.width = :width and
+								  bs.height = :height and
+								  bs.diameter = :diameter',
+							array(':width' => $params[0], ':height' => $params[1], ':diameter' => $params[2]));
+		$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=4>ШИНЫ</th></tr></thead><tbody id="fbody">';
+	
+		$bernd_name = '';
+		foreach($detail as $item)
+		{
+			$articul = 2000;
+			$link_art = ctools_modal_text_button($item -> id, '/dtbx_searchform/info/' . $type . '/' . $item -> id . '/' . $item -> id . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_sup = ctools_modal_text_button($item -> brand, '/dtbx_searchform/info/supplier/' . $item -> id . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_photo = ctools_modal_text_button('<img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/photo.png">', '/dtbx_searchform/info/tires_photo/' . $item -> id . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+			
+			$isphoto = ($item -> is_photo == 1) ? '<br>' . $link_photo : '';
+
+			$output .= '<tr><td>' . (($item -> brand == $bernd_name)? '' : $link_sup) .
+				   '</td><td>'. $link_art . $isphoto . '</a>' .
+				   '</td><td>' . $item -> tex_text . // $tcri .
+				   '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+			$bernd_name = $item -> brand;
+		}
+		$output .= '</tbody></table>';							
+							
+	}
+// МАСЛА	
+	if(strpos($type, 'oils') !== false)
+	{
+		$beg = strpos($type, '(') +1;
+		$end = strpos($type, ')');
+		$strparams = substr($type, $beg, $end - $beg);
+	
+		$params = explode(';', $strparams);
+		
+		$params_list = array();
+		foreach ($params as $param) {
+		    $params_list[] = explode(',', $param);
+		}  
+		
+/*		
+		$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $params[0] . '<br>'. $params[1] . '<br>'. $params[2] 
+					 . '<br>'. $params_list[0][0]
+					 . '<br>'. $params_list[0][1]
+					 . '<br>'. $params_list[1][0]
+					 . '<br>'. $params_list[1][1]
+					 . '<br>'. $params_list[2][0]
+					 . '<br>'. $params_list[2][1]
+					 ,
+					 
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+		);
+		return $form;
+*/	
+		$detail = db_query('select pro.product_id, pro.vendor_id, pro.product_code, pro.ext_code as product_ext_code, 
+											 concat(pro.product_name, \'<br>\', 
+											 		  COALESCE(t1.product_property_name, \'\'), \': \', COALESCE(t1.product_property_value_name, \'\'), \'<br>\', 
+													  t2.product_property_name, \': \', t2.product_property_value_name, \'<br>\', 
+													  COALESCE(t3.product_property_name, \'\'), \': \', COALESCE(t3.product_property_value_name, \'\')) as product_name,
+													  vn.vendor_name as vendor_name,
+													  vn.ext_code as SUP_ID
+							from t_product pro
+									inner join t_vendor vn on vn.vendor_id = pro.vendor_id
+									left join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_1 and pv.product_property_value_id = :product_property_value_id_1) t1 on t1.product_id = pro.product_id
+									inner join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_2 and pv.product_property_value_id = :product_property_value_id_2) t2 on t2.product_id = pro.product_id
+									left join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_3 and pv.product_property_value_id = :product_property_value_id_3) t3 on t3.product_id = pro.product_id
+									where pro.product_group_id = 1 -- масла 
+									order by vendor_name, product_code
+									',
+							array(':product_property_id_1' => $params_list[0][0], ':product_property_value_id_1' => $params_list[0][1], 
+								  ':product_property_id_2' => $params_list[1][0], ':product_property_value_id_2' => $params_list[1][1], 
+								  ':product_property_id_3' => $params_list[2][0], ':product_property_value_id_3' => $params_list[2][1] 
+								));
+		$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=4>МАСЛА</th></tr></thead><tbody id="fbody">';
+	
+		$vendor_name = '';
+		foreach($detail as $item)
+		{
+			$articul = 2000;
+			$link_product = ctools_modal_text_button($item -> product_code, '/dtbx_searchform/info/article/' . $item -> product_ext_code . '/0/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_vendor = ctools_modal_text_button($item -> vendor_name, '/dtbx_searchform/info/supplier/' . $item -> SUP_ID . '/0/nojs', '', 'ctools-modal-modal-popup-medium');
+//			$link_photo = ctools_modal_text_button('<img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/photo.png">', '/dtbx_searchform/info/tires_photo/' . $item -> id . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+//			$isphoto = ($item -> is_photo == 1) ? '<br>' . $link_photo : '';
+
+			$output .= '<tr><td>' . (($item -> vendor_name == $vendor_name) ? '' : $link_vendor) .
+				   '</td><td>'. $link_product . '</a>' .
+				   '</td><td>' . $item -> product_name . // $tcri .
+				   '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+			$vendor_name = $item -> vendor_name;
+		}
+		$output .= '</tbody></table>';							
+							
+	}		
+// АККУМУЛЯТОРЫ	
+	if(strpos($type, 'batteries') !== false)
+	{
+		$beg = strpos($type, '(') +1;
+		$end = strpos($type, ')');
+		$strparams = substr($type, $beg, $end - $beg);
+	
+		$params = explode(';', $strparams);
+		
+		$params_list = array();
+		foreach ($params as $param) {
+		    $params_list[] = explode(',', $param);
+		}  
+/*		
+		
+		$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $params[0] . '<br>'. $params[1] . '<br>'. $params[2] 
+					 . '<br>'. $params_list[0][0]
+					 . '<br>'. $params_list[0][1]
+					 . '<br>'. $params_list[1][0]
+					 . '<br>'. $params_list[1][1]
+					 . '<br>'. $params_list[2][0]
+					 . '<br>'. $params_list[2][1]
+					 . '<br>'. $params_list[3][0]
+					 . '<br>'. $params_list[3][1]
+					 
+					 ,
+					 
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+		);
+		return $form;
+*/	
+		$detail = db_query('select pro.product_id, pro.vendor_id, pro.product_code, pro.ext_code as product_ext_code, 
+											 concat(pro.product_name, \'<br>\', 
+											 		  COALESCE(t1.product_property_name, \'\'), \': \', COALESCE(t1.product_property_value_name, \'\'), \'<br>\', 
+													  t2.product_property_name, \': \', t2.product_property_value_name, \'<br>\', 
+													  COALESCE(t3.product_property_name, \'\'), \': \', COALESCE(t3.product_property_value_name, \'\'), \'<br>\', 
+													  COALESCE(t4.product_property_name, \'\'), \': \', COALESCE(t4.product_property_value_name, \'\')
+													  
+													) as product_name,
+													  vn.vendor_name as vendor_name,
+													  vn.ext_code as SUP_ID
+							from t_product pro
+									inner join t_vendor vn on vn.vendor_id = pro.vendor_id
+									inner join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_1 and pv.product_property_value_id = :product_property_value_id_1) t1 on t1.product_id = pro.product_id
+									inner join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_2 and pv.product_property_value_id = :product_property_value_id_2) t2 on t2.product_id = pro.product_id
+									left join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_3 and pv.product_property_value_id = :product_property_value_id_3) t3 on t3.product_id = pro.product_id
+									left join (select pvl.product_id, pp.product_property_name, pv.product_property_value_name 
+												   from t_product_property pp,
+														  t_product_property_value pv,
+												   	  t_product_property_value_link pvl
+													where pp.product_property_id = pv.product_property_id and
+														   pv.product_property_value_id = pvl.product_property_value_id and
+														   pv.product_property_id = :product_property_id_4 and pv.product_property_value_id = :product_property_value_id_4) t4 on t4.product_id = pro.product_id
+									where pro.product_group_id = 2 -- аккумуляторы
+									order by vendor_name, product_code
+									',
+							array(':product_property_id_1' => $params_list[0][0], ':product_property_value_id_1' => $params_list[0][1], 
+								  ':product_property_id_2' => $params_list[1][0], ':product_property_value_id_2' => $params_list[1][1], 
+								  ':product_property_id_3' => $params_list[2][0], ':product_property_value_id_3' => $params_list[2][1], 
+								  ':product_property_id_4' => $params_list[3][0], ':product_property_value_id_4' => $params_list[3][1] 
+								));
+		$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=4>АККУМУЛЯТОРЫ</th></tr></thead><tbody id="fbody">';
+	
+		$vendor_name = '';
+		foreach($detail as $item)
+		{
+			$articul = 2000;
+			$link_product = ctools_modal_text_button($item -> product_code, '/dtbx_searchform/info/article/' . $item -> product_ext_code . '/0/nojs', '', 'ctools-modal-modal-popup-medium');
+			$link_vendor = ctools_modal_text_button($item -> vendor_name, '/dtbx_searchform/info/supplier/' . $item -> SUP_ID . '/0/nojs', '', 'ctools-modal-modal-popup-medium');
+//			$link_photo = ctools_modal_text_button('<img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/photo.png">', '/dtbx_searchform/info/tires_photo/' . $item -> id . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
+//			$isphoto = ($item -> is_photo == 1) ? '<br>' . $link_photo : '';
+
+			$output .= '<tr><td>' . (($item -> vendor_name == $vendor_name) ? '' : $link_vendor) .
+				   '</td><td>'. $link_product . '</a>' .
+				   '</td><td>' . $item -> product_name . // $tcri .
+				   '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+			$vendor_name = $item -> vendor_name;
+		}
+		$output .= '</tbody></table>';							
+							
+	}			
+						/*
+						
+	$myown_path = $GLOBALS['base_url'] . '/css/myown.css';
+	$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.js"></script>
+	<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.tablesorter.min.js"></script>';
+	$my_js_code = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/selectfilter.js"></script>';
+										
+						
+	$output = "";					
+	///////////////////////
+	$filter_producer = '<select id="prod_select"><option value="0">Все производители</option>';
+	$filter_prodname = '<select id="sell_select"><option value="0">Все наименования</option>';
+	
+	$produsers = array();
+	$prodnames = array();
+	$allitems = array();
+	
+	foreach ($detail as $item)
+	{
+		$allitems[] = $item; 
+		if (in_array($item->BRA_BRAND, $produsers) == false) $produsers[] = $item->BRA_BRAND;
+		if (in_array($item->TEX_TEXT, $prodnames) == false) $prodnames[] = $item->TEX_TEXT;
+	}
+	
+	foreach ($produsers as $item)
+	{
+		$filter_producer .= '<option value="' . $item . '">' . $item . '</option>';
+	}
+	
+	foreach ($prodnames as $item)
+	{
+		$filter_prodname .= '<option value="' . $item . '">' . $item . '</option>';
+	}
+	$filter_producer .= '</select>';
+	$filter_prodname .= '</select>';
+	/////////////////////////////					
+						
+	
+	$firsttime = true;
+	foreach($allitems as $item)
+	{
+		if($firsttime)
+		{
+			$firsttime = false;
+			$output = '<link rel="stylesheet" type="text/css" href="' . $myown_path . '">' . $myjspath . $filter_producer . '&nbsp;' . $filter_prodname .
+			'<div class="table-view search-page"><table id="searchresult"><thead><tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr></thead><tbody id="fbody">';
+		}
+		$articul = 2000;
+		$output .= '<tr><td>' . $item -> BRA_BRAND . '</td><td>' . $item -> ARL_DISPLAY_NR . '</td><td>' . $item -> TEX_TEXT . '</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+	}
+	
+	if($firsttime)
+		$output = "Ничего не найдено...";
+	else
+		$output .= ('</tbody></table></div>' . $my_js_code);
+	*/
+	
+//	$form = drupal_get_form('dtbx_searchform_page', $output);
+	
+	//$output = drupal_render($search_form['search']) . $output;
+	
+	
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+		);
+		
+	return $form;
+}
+
+function dtbx_searchform_info($type, $param1, $param2, $js)
+{
+	if ($js) {
+	  
+	  /*$example_style = array(
+      'example-contact-style' => array(
+        'modalSize' => array(
+          'type' => 'fixed', // Тип модального окна. фиксированный или резиновый.
+          'width' => 420, // Ширина модального окна.
+          'height' => 'auto', // Высота модального окна.
+        ),
+        'modalOptions' => array(
+          'opacity' => (float) 0.3, // Прозрачность фона.
+          'background-color' => '#000000', // Цвет фона.
+        ),
+        'closeText' => '', // Текст для закрытия модального окна.
+        'loadingText' => '', // Текст, отображаемый в момент загрузки модального окна.
+        'animation' => 'fadeIn', // Эффект появления модального окна.
+        'animationSpeed' => 'fast', // Скорость анимации.
+      ),
+    );*/
+ 
+    // Подключаем настройки для модального окна.
+    //drupal_add_js($example_style, 'setting');
+      
+		switch($type)
+		{
+			case 'article': {
+				$result = db_query('select distinct (select dt.tex_text
+							     from tecdoc.tof_criteria cr,
+									  tecdoc.tof_designations ds,
+									  tecdoc.tof_des_texts dt
+								 where cr.cri_des_id = ds.des_id and
+									   ds.des_tex_id = dt.tex_id and
+									   ds.des_lng_id = 16 and
+									   ac.acr_cri_id  = cr.cri_id) as text_1,
+								 ac.acr_value,
+								 (select dt.tex_text
+								  from tecdoc.tof_designations ds,
+									   tecdoc.tof_des_texts dt
+								  where ds.des_tex_id = dt.tex_id and
+										ds.des_lng_id = 16 and
+										ds.des_id = ac.acr_kv_des_id) as text_2
+					     from tecdoc.tof_article_criteria ac 
+						 where ac.acr_art_id = :ART_ID and
+						       (ac.acr_ga_id = :ACR_GA_ID or :ACR_GA_ID = 0)and
+						 	   ac.acr_display = 1', array(':ART_ID' => $param1, ':ACR_GA_ID' => $param2));
+				
+				$form = '';
+				foreach($result as $item) {
+					$form .= '<br>' /*. $item -> ART_ID*/ . $item -> text_1 . ' ' . $item -> text_2 . ':' . $item -> acr_value;
+				}	
+			    break;	
+			};
+			case 'supplier': {
+				$result = db_query('select sl.SLO_LOGO, sd.SAD_NAME1, sd.SAD_WEB
+									from tecdoc.tof_supplier_logos sl,
+										 tecdoc.tof_supplier_addresses sd
+									where sl.SLO_SUP_ID = sd.SAD_SUP_ID and
+										  sd.SAD_COU_ID is null and
+										  sl.SLO_SUP_ID = :SUP_ID', 
+									array(':SUP_ID' => $param1));
+				$form = '<table>';
+				
+				foreach($result as $item) {
+					$form .= '<tr>';
+					
+					$im = '<img src="data:image/jpeg;base64,' . base64_encode($item -> SLO_LOGO) . '">';
+					$inf = $item -> SAD_NAME1 . '<br><a href="' . $item -> SAD_WEB . '">'  . $item -> SAD_WEB . '</a>';
+					
+					$form .= '<td>' . $im . '</td><td>' . $inf . '</td>';
+					
+					$form .= '</tr>';
+				}									
+				$form .= '</table>';
+				break;
+			}
+			case 'sellerinfo': {
+				$form_state = array(
+					'items' => 1,
+					'tabid' => 1,
+				);
+				
+				$form = drupal_get_form('dtbx_sellerinfo_page', $form_state);
+			}	
+			case 'tires_photo': {
+				$result = db_query('select bs.photo_1, bs.description
+									from filter_tires.bc_shop_tires bs
+									where bs.id = :id', 
+									array(':id' => $param1));
+				$form = '<table>';
+				
+				foreach($result as $item) {
+					$form .= '<tr>';
+					
+					$im = '<img width=300px heigth=400px src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/photos_tires/' . $item -> photo_1 . '">';
+					$inf = $item -> description;
+					
+					$form .= '<td>' . $im . '</td><td>' . $inf . '</td>';
+					
+					$form .= '</tr>';
+				}									
+				$form .= '</table>';
+				break;
+			}			
+			case 'wheels_photo': {
+				$result = db_query('select bw.photo_1, bw.description
+									from filter_tires.bc_shop_wheels bw
+									where bw.id = :id', 
+									array(':id' => $param1));
+				$form = '<table>';
+				
+				foreach($result as $item) {
+					$form .= '<tr>';
+					
+					$im = '<img width=300px heigth=400px src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/photos_wheels/' . $item -> photo_1 . '">';
+					$inf = $item -> description;
+					
+					$form .= '<td>' . $im . '</td><td>' . $inf . '</td>';
+					
+					$form .= '</tr>';
+				}									
+				$form .= '</table>';
+				break;
+			}			
+
+		}
+	  $form .= '<br><br>';
+	  
+
+	
+	  $output = array();
+	  $output[] = ctools_modal_command_display('Информация', $form);
+
+	  print ajax_render($output);
+	}
+}
+
+function dtbx_searchform_page($form, &$form_state, $output = "") 
+{
+	//$output = "";
 	
 	if(isset($_GET['code']) && isset($_GET['type']) && isset($_GET['car']))
 	{
@@ -195,10 +1213,9 @@ function dtbx_searchform_page($form, &$form_state)
 		//'#autocomplete_path' => 'searchvalue/autocomplete',
 	);
 	
-	$form['#attached']['library'][] = array('system', 'ui.autocomplete');
-	$form['#attached']['js'][] = array(
-		'data' => 	'jQuery(
-						function(){jQuery(\'input[name="searchvalue"]\').autocomplete
+	$form['search']['#attached']['library'][] = array('system', 'ui.autocomplete');
+	$form['search']['#attached']['js'][] = array(
+		'data' => 	'jQuery(function(){jQuery(\'input[name="searchvalue"]\').autocomplete
 							({source: Drupal.settings.basePath + "searchvalue/autocomplete"});});', 
 					'type' => 'inline');
  
@@ -223,33 +1240,73 @@ function dtbx_searchform_page($form, &$form_state)
 			'event' => 'click'
 			);
 			
+	
+	$form['search']['anothertypes'] = array(
+		'#prefix' => '<div style="width:100%;text-align:right;font-size:200%;">',
+		'#suffix' => '</div>',
+		'#markup' => '<a href="/dtbx_searchform/tires/1" textalign=right>
+			<font size=3>Шины</font></a>&nbsp;<a href="/dtbx_searchform/oils/2" textalign=right>
+			<font size=3>Масла</font></a>&nbsp;<a href="/dtbx_searchform/tires/3" textalign=right>
+			<font size=3>Диски</font></a>&nbsp;<a href="/dtbx_searchform/batteries/1" textalign=right>
+			<font size=3>Аккумуляторы</font></a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;',
+
+
+		'#weight' => 1000, //set weight to show markup at the bottom of the form
+    );
+	
+		
+			
 	if($output == "")
 	{
 		/*$output = '<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>&nbsp;<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a><br>
 		<a href="http://catalog.detbox.ru/hyundai/">Hyundai</a>';*/
 	
 		
-		$result_type = db_query('select * from t_car_type where is_visible = 1');
+		$result_type = db_query('select * from t_car_type where is_visible = 1 order by car_type_id');
+		
+		$output .= '<table width=100%><tr>';
 		
 		foreach($result_type as $item_type)
 		{
-			$output .= ('<div class="cartypeid' . $item_type->car_type_id . ' content padbl"><h1 class="title ico' . $item_type->car_type_id . '">' . $item_type->car_type_name . '</h1> <ul class="list">');
-
-			$result_brend = db_query('select cb.car_brend_id, cb.car_brend_name
-								 from t_car_type_brend ctb,
-									  t_car_brend cb
-								 where ctb.car_brend_id = cb.car_brend_id AND
-									   ctb.car_type_id = :car_type_id',
-								array(':car_type_id' => $item_type->car_type_id));
-								
+			$brend  = ('<div class="cartypeid' . $item_type->car_type_id . ' content padbl"><h1 class="title ico' . $item_type->car_type_id . '">' . $item_type->car_type_name . '</h1> <ul class="list">');
 			
-								
+			$result_brend = db_query('select cb.car_brend_id, cb.car_brend_name
+								      from detbox.v_car_brend_list cb
+									  where cb.car_type_id = :car_type_id
+									  order by cb.car_brend_name',
+								      array(':car_type_id' => $item_type->car_type_id));
+			
 			foreach($result_brend as $item_brend)
 			{
-				$output .= ('<li><a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a></li>');
+				$brend .= ('<li><img src="' . drupal_get_path('module', 'dtbx_searchform') . '/png/' . $item_brend->car_brend_name . '.PNG"' . '>&nbsp;<a href="/dtbx_searchform/brend/' . $item_brend->car_brend_id . '">' . $item_brend->car_brend_name . '</a></li>');
 			}
-			$output .= ('</ul></div>');						   
-		}
+			
+			switch ($item_type->car_type_id) {
+				//Легковой
+				case 1: {
+						$output .= '<td width=65% rowspan=2>' .  $brend . '</td>';
+						//$output .= $brend;
+						break;
+					} 
+				//Мото
+				case 2: {
+						$output .= '<td width=35%>' . $brend . '</td></tr>';
+						//$output .= $brend;
+						break;
+					} 
+				//Грузовой
+				case 6: {
+						$output .= '<tr><td width=35%>' . $brend . '</td>';
+						//$output .= $brend;
+						break;
+					} 		
+			}
+			
+			$output .= ('</ul></div>');
+		}		
+		
+		$output .= '</tr></table>';
+
 	
 	}
 		
@@ -328,6 +1385,11 @@ function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
 	
 	
 	$myown_path = $GLOBALS['base_url'] . '/css/myown.css';
+	
+	$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.js"></script>
+	<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.tablesorter.min.js"></script>';
+	$my_js_code = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/selectfilter.js"></script>';
+	
 				
 	$str_query = "";
 	
@@ -404,25 +1466,58 @@ function dtbx_searchform_search($partcode, $searchtype, $carbrend = NULL)
 		$firsttime = true;
 		$orderbutton = '<a href="#">Заказать</a>';
 		
+		///////////////////////
+		$filter_producer = '<select id="prod_select"><option value="0">Все производители</option>';
+		$filter_seller = '<select id="sell_select"><option value="0">Все продавцы</option>';
+		
+		$produsers = array();
+		$sellers = array();
+		$allitems = array();
+		
+		//$count = 0;
 		foreach ($result as $item)
+		{
+			$allitems[] = $item; 
+			if (in_array($item->ext_vendor_name, $produsers) == false) $produsers[] = $item->ext_vendor_name;
+			if (in_array($item->company_name, $sellers) == false) $sellers[] = $item->company_name;
+		}
+		
+		foreach ($produsers as $item)
+		{
+			$filter_producer .= '<option value="' . $item . '">' . $item . '</option>';
+		}
+		
+		foreach ($sellers as $item)
+		{
+			$filter_seller .= '<option value="' . $item . '">' . $item . '</option>';
+		}
+		$filter_producer .= '</select>';
+		$filter_seller .= '</select>';
+		/////////////////////////////
+		
+		foreach ($allitems as $item)
 		{
 			if($firsttime)
 			{
 				$firsttime = false;
-				$output = '<link rel="stylesheet" type="text/css" href="' . $myown_path . '">
-				<div class="table-view search-page"><table><thead><tr><th class="first"></th><th>производитель</th><th>номер</th><th>наименование</th><th>обновление</th><th>количество</th><th>цена</th><th colspan=2>продавец</th></tr></thead><tbody>';
+				$output = '<link rel="stylesheet" type="text/css" href="' . $myown_path . '">' . $myjspath . $filter_producer . '&nbsp;' . $filter_seller .
+				'<div class="table-view search-page"><table id="searchresult"><thead><tr><th class="first"></th><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>обновление&nbsp;</th><th>количество</th><th>цена<br>руб.</th><th colspan=2>продавец</th></tr></thead><tbody id="fbody">';
 			}
 			$today = date("Y-m-d");
 			$strdate = ($item->price_list_head_date == $today) ? "<span class=\"actual\"></span> Сегодня" : "<span class=\"actual inactual\"></span> $item->price_list_head_date";
 		
+			$link_usr = ctools_modal_text_button(t($item->company_name), '/dtbx_sellerinfo/' . $item->user_id . '/1', '', 'ctools-modal-modal-popup-large');		
+			$link_usr2 = ctools_modal_text_button(t($item->company_name), '/dtbx_searchform/info/sellerinfo/' . $item->user_id . '/1', '', 'ctools-modal-modal-popup-large');		
+			
+			
 			$row = '<tr><td class="first"></td><td><a href="#">' . $item->ext_vendor_name . '</a></td><td>' . $item->product_code . '</td><td>' . $item->product_name . '</td><td class="update">' . $strdate . '</td><td><div class="pricediv">' . 
-					$item->product_count . ' шт.' . $orderbutton . '</div></td><td>' . $item->product_price . 'р.</td><td><a href="/dtbx_sellerinfo/' . $item->user_id . '/1"  title="" class="ctools-use-modal">' . $item->company_name . '</a></td><td>' . $item->user_rating . '</td></tr>';
+					$item->product_count . ' шт.' . $orderbutton . '</div></td><td>' . $item->product_price . '</td><td><br>' . $link_usr . '<br>' . $link_usr . '</td><td>' . $item->user_rating . '</td></tr>';
 			$output .= $row;
 		}
 		if($firsttime)
 			$output = "Ничего не найдено...";
 		else
-			$output .= '</tbody></table></div>';
+			$output .= ('</tbody></table></div>' . $my_js_code);
 	}
 	
 // Запись статистики поиска
