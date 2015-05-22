@@ -1,0 +1,105 @@
+<?php
+
+/**
+ * init().
+ */
+
+  
+function dtbx_manufacturers_init() {
+  //*  
+}
+
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_manufacturers_menu() 
+{
+
+
+    $items['dtbx_manufacturers'] = array(
+        'title' => 'Данные производителя',
+        'access callback' => true,
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_manufacturers_page'),		
+        'type' => MENU_CALLBACK,
+    );
+	return $items;
+}
+
+function dtbx_manufacturers_page($form, &$form_state) 
+{	
+  $result = db_query('select distinct sl.SLO_LOGO,
+							sup.SUP_BRAND,
+							sa.SAD_NAME1,
+							sa.SAD_WEB,
+							(select dt.TEX_TEXT  
+							  from tecdoc.tof_countries cn,
+									 tecdoc.tof_designations cd,
+									 tecdoc.tof_des_texts dt
+							  where cn.COU_DES_ID = cd.DES_ID and
+									 cd.DES_TEX_ID = dt.TEX_ID and
+								  cd.DES_LNG_ID = 16 and
+								  cn.COU_ID = sa.SAD_COU_ID_POSTAL) as TEX_TEXT
+					from tecdoc.tof_suppliers sup,
+						  tecdoc.tof_supplier_logos sl,
+						  tecdoc.tof_supplier_addresses sa
+					where sup.SUP_ID = sl.SLO_SUP_ID	and
+						   sup.SUP_ID = sa.SAD_SUP_ID and
+						   sa.SAD_COU_ID is null
+					order by 2	   
+					');
+	$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th>логотип</th><th>производитель</th><th>наименование</th><th>страна</th><th>сайт</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=5>Производители</th></tr></thead><tbody id="fbody">';
+						   
+	foreach($result as $item)
+		{
+			$im = '<img src="data:image/jpeg;base64,' . base64_encode($item -> SLO_LOGO) . '">';
+			
+			$web = $item -> SAD_WEB;
+			
+			if(!preg_match('/^http:\/\//', $web)) {
+				$web = 'http://' . $web;
+			}
+			
+			$web = l($item -> SAD_WEB, $web, 
+					array('attributes' => array('target' => '_blank'), 
+						  'html' => TRUE,
+						  'absolute' => TRUE));
+			
+			$output .= '<tr><td>' . $im .
+			           '</td><td>' . $item -> SUP_BRAND .
+					   '</td><td>'. $item -> SAD_NAME1 .
+					   '</td><td>' . $item -> TEX_TEXT . // $tcri .
+					   '</td><td>' . $web . '</td></tr>';
+	}
+	$output .= '</tbody></table>';							
+	
+	$form['markup'] = array(
+		'#prefix' => '<div id = "form-ajax-node-content">',
+		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+		);  
+		
+	return $form;
+}
+
+
+/**
+* Page access.
+**/
+
+function dtbx_manufacturers_access() {
+  global $user;
+  return ($user->uid > 0);
+}
+
+function dtbx_manufacturers_submit($form, &$form_state)
+{
+  // return $form;
+}
+
+
+?>

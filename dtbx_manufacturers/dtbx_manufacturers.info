@@ -1,0 +1,6 @@
+name = "Данные производителя"
+description = Отображение данных производителя
+core = 7.x
+version = 7.x-1.0
+files[] = dtbx_manufacturers.module
+package = DetBox
