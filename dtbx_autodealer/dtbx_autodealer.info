@@ -1,0 +1,6 @@
+name = "Каталоги Автодилер"
+description = Каталоги Автодилер
+core = 7.x
+version = 7.x-1.0
+files[] = dtbx_autodealer.module
+package = DetBox

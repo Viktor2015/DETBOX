@@ -1,0 +1,442 @@
+﻿<?php
+
+/**
+ * init().
+ */
+
+  
+function dtbx_autodealer_init() {
+	static $already_added = FALSE;
+
+	if ($already_added) {
+		return; 
+	}	
+	$path = drupal_get_path('module', 'dtbx_autodealer') . '/include/';
+	include $path . "_lib.php";    /// После подключения доступен класс A2D
+	include $path . "adc/api.php"; /// После подключения доступен класс ADC
+	drupal_add_css($path . "media/css/style.css");  
+	drupal_add_css($path . "media/css/adc.css");  
+	drupal_add_css($path . "media/css/fw.css");
+	
+	$already_added = TRUE;
+}
+
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_autodealer_menu() 
+{
+    $items['dtbx_autodealer'] = array(
+        'title' => 'Каталоги Автодилер',
+        'access callback' => 'dtbx_autodealer_access',
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_autodealer_type'),
+        'type' => MENU_CALLBACK,
+    );
+	
+    $items['dtbx_autodealer/brand/%'] = array(
+        'title' => 'Каталоги Автодилер',
+        'access callback' => 'dtbx_autodealer_access',
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_autodealer_brand', 2),
+        'type' => MENU_CALLBACK,
+    );	
+	
+	$items['dtbx_autodealer/model/%'] = array(
+        'title' => 'Каталоги Автодилер',
+        'access callback' => 'dtbx_autodealer_access',
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_autodealer_model', 2, 3),
+        'type' => MENU_CALLBACK,
+    );	
+
+	$items['dtbx_autodealer/tree/%'] = array(
+        'title' => 'Каталоги Автодилер',
+        'access callback' => 'dtbx_autodealer_access',
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_autodealer_tree', 2),
+        'type' => MENU_CALLBACK,
+    );	
+
+	$items['dtbx_autodealer/map/%'] = array(
+        'title' => 'Каталоги Автодилер',
+        'access callback' => 'dtbx_autodealer_access',
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_autodealer_map', 2, 3),
+        'type' => MENU_CALLBACK,
+    );	
+	
+	return $items;
+}
+
+ 
+/**
+ * Типы ТС	
+**/
+function dtbx_autodealer_type($form, &$form_state) 
+{
+  /// Устанавливаем объект $oA2D - объект для работы с каталогом Компании АвтоДилер
+  $oA2D = ADC::instance();
+
+  /// Первый запрос к каталогу. Получаем все доступные нам группы техники
+  $aTypes = $oA2D->getTypeList();
+  /// Раскомментировав строку нижу, можно посмотреть что вернул сервер
+  //$oA2D->e($aTypeList);
+
+  /// Если есть ошибки, то выводим их через функцию, доступную нашему объекту
+  if( ($aErrors=A2D::property($aTypes,'errors')) ) $oA2D->error($aErrors,404);
+
+  /// Подготавливаем данные для конструктора "хлебных крошек" (helpers/breads.php)
+  A2D::$aBreads = A2D::toObj([
+    'types' => [
+        "name" => 'Каталог',
+        "breads" => []
+    ]
+  ]);
+	
+	
+	$output	= '<ul class="list">';
+	foreach( $aTypes AS $aType ){
+		$link = l($aType->type_name, 'dtbx_autodealer/brand/' . $aType->type_id);
+        $output .= '<li><img src="' . $aType->type_url . '" alt="' . $aType->type_name . '">';
+		$output .= $link . '</li>';
+	}
+	
+	$output	.= '</ul>';
+	$form['types']	= array(
+		'#markup' => $output
+	);
+	
+	return $form;
+}
+
+/**
+ * Брэнды ТС
+**/
+function dtbx_autodealer_brand($form, &$form_state, $typeid) 
+{
+	/// Устанавливаем объект $oA2D - объект для работы с каталогом Компании АвтоДилер
+	$oA2D = ADC::instance();
+
+	/// Получаем переменную из своего окружения
+	$sTypeID = $typeid;
+
+	/// Получение марок для группы. Если группу не передать, то получим список вообще всех марок
+	$oMarkList = $oA2D->getMarkList($sTypeID);
+
+	/// Если есть ошибки, то выводим их через функцию доступную нашему объекту
+	if( ($aErrors=A2D::property($oMarkList,'errors')) ) $oA2D->error($aErrors,404);
+
+	/// В ответ вернулся объект с двумя свойствами: Имя группы и Список марок к этой группе.
+	$aMarkList = A2D::property($oMarkList,'marks');
+	$sTypeName = A2D::property($oMarkList,'typeName');
+
+	/// Подготавливаем данные для конструктора "хлебных крошек" (helpers/breads.php)
+	A2D::$aBreads = A2D::toObj([
+		'types' => [
+			"name" => 'Каталог',
+			"breads" => []
+		],
+		'marks' => [
+			"name" => $sTypeName,
+			"breads" => []
+		],
+	]);	
+	
+	$output	= '<ul class="list">';
+	foreach( $aMarkList AS $oMark ){
+		$link = l($oMark->mark_name, 'dtbx_autodealer/model/' . $typeid . '/' . $oMark->mark_id);
+        $output .= '<li><img src="' . $oMark->mark_img_url . '" width="32" height="32" alt="' . $oMark->mark_name . '">';
+		$output .= $link . '</li>';
+	}
+	
+	$output	.= '</ul>';
+	$form['types']	= array(
+		'#markup' => $output
+	);
+	
+	return $form;	
+}
+
+/**
+ * Модели ТС по брэнду
+**/
+function dtbx_autodealer_model($form, &$form_state, $typeid, $brandid){
+	/// Устанавливаем объект $oA2D - объект для работы с АвтоКаталогом
+	$oA2D = ADC::instance();
+
+	/// Получаем переменные из своего окружения
+	$sTypeID = $typeid;
+	$sMarkID = $brandid;
+
+	/// Получить список моделей для типа/группы и марки
+	$oModelList = $oA2D->getModelList($sMarkID,$sTypeID); ///$oA2D->e($oModelList);
+
+	/// Сперва проверим на ошибки
+	if( ($aErrors=A2D::property($oModelList,'errors')) ) $oA2D->error($aErrors,404);
+
+	/// В ответ вернулся объект с как минимум с 3-я свойствами:
+	$sTypeName = A2D::property($oModelList,'typeName'); /// Имя выбранной ранее группы
+	$sMarkName = A2D::property($oModelList,'markName'); /// Имя выбранной ранее марки
+	$oModels   = A2D::property($oModelList,'models');   /// Список доступных моделей для выбранных марки и группы
+
+	/// В текущих примерах используется второе
+	//$bMultiArray = TRUE; ///multiArray On  - массив с вложенными в него дочарними элементами
+	$bMultiArray = FALSE;  ///multiArray Off - последовательный массив без вложений - сперва корневой элемент, потом его дочерний и так далее по иерархии
+
+	/// Подготавливаем данные для конструктора "хлебных крошек" (helpers/breads.php)
+	A2D::$aBreads = A2D::toObj([
+		'types' => [
+			"name" => 'Каталог',
+			"breads" => []
+		],
+		'marks' => [
+			"name" => $sTypeName,
+			"breads" => [
+				0 => $sTypeID,
+				1 => $sMarkID
+			]
+		],
+		'models' => [
+			"name" => $sMarkName,
+			"breads" => []
+		],
+	]);	
+	$output	= '<ul class="list">';
+	foreach( $oModels AS $aModel ){
+		$link = l($aModel->model_name, 'dtbx_autodealer/tree/' . $aModel->model_id);
+		$imgsrc = 	($aModel->model_url != '') ? $aModel->model_url : 'http://detbox.ru/' . drupal_get_path('module', 'dtbx_autodealer') . '/noauto.jpg';
+        $output .= '<li>' . '<img src="' . $imgsrc . '" width="80" alt="' . $aModel->model_name . '" border="0">';
+		$output .= $link;
+		$output .= (A2D::property($aModel,'model_modification'))?'<br>'.' Модификации : '.$aModel->model_modification:'';	
+		$output .= (A2D::property($aModel,'model_actual'))?'<br>'.'Актуальность : '.$aModel->model_actual:'';	
+		
+		$output .= '</li>';
+		
+	}
+	
+	$output	.= '</ul>';
+	$form['types']	= array(
+		'#markup' => $output
+	);
+	
+	return $form;
+}
+
+/**
+ * Дерево по модели ТС
+**/
+function dtbx_autodealer_tree($form, &$form_state, $modelid){
+	/// Устанавливаем объект $oA2D - объект для работы с АвтоКаталогом
+	$oA2D = ADC::instance();
+
+	/// Получаем переменные из своего окружения
+	$sModelID    = $modelid;
+	$bMultiArray = (boolean) '';
+
+	/// Получить список узлов и деталей для выбранной модели
+	$oTreelList  = $oA2D->getTreeList($sModelID,$bMultiArray); ///$oA2D->e($oTreelList);
+
+	/// Сперва проверим на ошибки
+	if( ($aErrors=A2D::property($oTreelList,'errors')) ) $oA2D->error($aErrors,404);
+
+	/// В ответ вернулся объект с такими свойствами:
+	$sTypeID     = A2D::property($oTreelList,'typeID');    /// Идентификатор группы
+	$sTypeName   = A2D::property($oTreelList,'typeName');  /// Имя группы
+	$sMarkID     = A2D::property($oTreelList,'markID');    /// Идентификатор марки
+	$sMarkName   = A2D::property($oTreelList,'markName');  /// Имя марки
+	$sModelName  = A2D::property($oTreelList,'modelName'); /// Имя модели
+	$aTreelList  = A2D::property($oTreelList,'details');   /// список деталей
+
+	/**
+	 * Подготавливаем данные для конструктора "хлебных крошек" (helpers/breads.php)
+	 * Так как:
+	 *      1. type.php и mark.php вынесены как точки входа для всех каталогов в корень,
+	 *      2. Остальные скрипты для каталога от АвтоДилер находятся в директории adc
+	 *      3. Из 5-ти шагов на последнем(map.php) крошки не нужны, на четвертом(tree.php) своя структура
+	 * Мы делаем:
+	 *      1. В файле adc/api.php выключаем рутовый каталог так - static::$catalogRoot = "";
+	 *      2. Добавляем в нужную единственную крошку дополнительную переменную: "root"=>"/adc"
+	 *      3. Расширяем конструктор крошек. Код можно подсмотреть в helpers/breads.php
+	*/
+	A2D::$aBreads = A2D::toObj([
+		'types' => [
+			"name" => 'Каталог',
+			"breads" => []
+		],
+		'marks' => [
+			"name" => $sTypeName,
+			"breads" => [
+				0 => $sTypeID,
+				1 => $sMarkID
+			]
+		],
+		'models' => [
+			"name" => $sMarkName,
+			"breads" => [
+				0 => $sTypeID,
+				1 => $sMarkID
+			],
+			"root" => "/adc" /// Наша добавленная переменная
+		],
+		'tree' => [
+			"name" => $sModelName,
+			"breads" => []
+		],
+	]);
+	
+		
+	$output	= '<table><tr><th>id</th><th>parent_id</th><th>tree_name</th>';
+	foreach( $aTreelList as $f ){
+		if ($f->childs == 0) {
+			$link = l($f->tree_name, 'dtbx_autodealer/map/' . $modelid . '/' . $f->id);
+			$output .= '<tr><td>' . $f->id . '</td><td>' . $f->parent_id . '</td><td>' . $link . '</td></tr>' ;
+		} else {
+			$output .= '<tr><td>' . $f->id . '</td><td>' . $f->parent_id . '</td><td>' . $f->tree_name . '</td></tr>' ;
+		}	
+	}
+	
+	$output	.= '</table>';
+	$form['types']	= array(
+		'#markup' => $output
+	);
+	
+	return $form;
+}
+
+/**
+ * 
+**/
+function dtbx_autodealer_map($form, &$form_state, $modelid, $treeid)
+{
+	/// Устанавливаем объект $oA2D - объект для работы с АвтоКаталогом
+	$oA2D = ADC::instance();
+
+	/// Получаем переменные из своего окружения
+	$sTreeID  = $treeid;
+	$sModelID = $modelid;
+	$bBrowser = '';
+	$sJumpPic = null;
+
+	/// Получаем данные для построения иллюстрации и списка номенклатуры
+	$vMapImg  = $oA2D->getDetails($sModelID,$sTreeID,$sJumpPic);
+
+	/// Сперва проверим на ошибки
+	if( ($aErrors=A2D::property($vMapImg,'errors')) ) $oA2D->error($aErrors,404);
+
+	/// В ответ вернулся объект с такими свойствами:
+	$sTypeID    = A2D::property($vMapImg,'typeID');    /// Идентификатор группы
+	$sTypeName  = A2D::property($vMapImg,'typeName');  /// Имя группы
+	$sMarkID    = A2D::property($vMapImg,'markID');    /// Идентификатор марки
+	$sMarkName  = A2D::property($vMapImg,'markName');  /// Имя марки
+	$sModelName = A2D::property($vMapImg,'modelName'); /// Имя модели
+	$sTreeName  = A2D::property($vMapImg,'treeName');  /// Имя узла (двигатель, рулевое управление, кузов)
+	$sMapName   = A2D::property($vMapImg,'mapName');   /// Имя выбранной детали
+	$sMapNameTree = ((strlen($sMapName)>43)?substr($sMapName, 0, 40)."...":$sMapName); /// Сокращение имени выбранной модели для последней крошки
+	$mapImg     = A2D::property($vMapImg,'mapImg');    /// Иллюстрация детали с позициями элементов
+	$aDetails   = A2D::property($vMapImg,'details');   /// Номенклатура к иллюстрации
+
+	$aNav       = A2D::property($vMapImg,'nav');       /// Навигации - предыдущая и следующая деталь
+	$_prev      = A2D::property($aNav,'prev');         /// предыдущая
+	$_next      = A2D::property($aNav,'next');         /// следующая
+
+	$bMultiArray = 0; /// Нужно для крошек, чтобы при переходе не получить другой массив. Хотя отсутсвие и означает FALSE/0 - для понимания
+	
+	
+	$output = ' <div id="AutoDealer">
+				<div id="map">
+					<h1 id="pic">Карта размещения деталей &laquo;<' . $sMapName . '&raquo;</h1>
+					<div id="iframe">
+						<div id="imageFrame">' . $mapImg . '</div>
+						<!--Nav-->
+						<div id="zoomer">
+							<div class="ml20">
+								<INPUT type="checkbox" checked onclick="showlabels(this.checked);" value="1" style="vertical-align:middle;" id="cl1" title="hide-show">
+								<label title="hide-show" for="cl1">метки</label>&nbsp;
+								<B style="vertical-align:middle">Масштаб: </B>
+								<input type="text" readonly style="vertical-align:middle;width:40px;font-size:10pt;height:16px;background: transparent; border: 0px #000000 Solid;" id="map_info" value="100%">
+								<span class="zoomBttn" onclick="izoom(-1);" title="-Zoom-">-</span>&nbsp;
+								<span class="zoomBttn" onclick="izoom(0);" title="=Zoom=">100%</span>&nbsp;
+								<span class="zoomBttn" onclick="izoom(1);" title="+Zoom+">+</span>
+							</div>
+						</div>
+						<!--/Nav-->
+					</div>
+				</div>
+				</div>';
+				
+	$output .= '<table border="0" align="center" width="100%" cellpadding="2" cellspacing="1" class="brd">
+					<tr bgcolor=LightSteelBlue>
+						<td align="center" width="3%"><B>N</B></td>
+						<td align="center" width="3%"></td>
+						<td align="center" width="45%"><B>Наименование</B></td>
+						<td align="center" width="30%"><B>Номер</B></td>
+						<td></td>
+					</tr>';
+    
+	
+	foreach( $aDetails as $sDetail ){
+		$link = l('Найти', 'dtbx_searchform/search/' . $sDetail->detail_num . '/0');
+		
+		$output .=	'<tr id="tr<' . $sDetail->detail_id . '" data-position="<' . $sDetail->detail_pos . '"> 
+						
+						<td align="right" id="detailInfo">' . $sDetail->detail_inc . '.</td>
+						
+						<td align="center">
+							<a title="more" class="detailInfo" onclick="_f(\'model=' . $sModelID . '&tree=' . $sDetail->detail_id . '\');return false;">
+								i
+							</a>
+						</td>
+						
+						<td>
+							<a href="#" onclick="return td(' . $sDetail->detail_id . ',1,' . $sDetail->detail_pos . ');" title="more">'
+							. $sDetail->detail_name .
+						'	</a>
+						</td>
+						
+						<td>
+							<a href="#" onclick="return td(' . $sDetail->detail_id . ',1,' . $sDetail->detail_pos . ');" title="more"> '
+							. $sDetail->detail_num .
+						'	</a>
+						</td>
+						
+						<td>' . $link . '</td>
+						
+					</tr>';
+	}
+	$output .=	'</table>';
+	
+	$form['types']	= array(
+		'#markup' => $output
+	);
+	
+	return $form;
+}
+
+function dtbx_autodealer_delete_submit($form, &$form_state) {
+	/**/  	
+}
+
+
+/**
+* Page access.
+**/
+
+function dtbx_autodealer_access() {
+  global $user;
+  //return ($user->uid > 0);
+  return true;
+
+}
+
+function dtbx_autodealer_profile_validate($form, &$form_state) {
+	/**/
+}
+
+function dtbx_autodealer_submit($form, &$form_state) {
+	/**/
+}
+
+
+?>

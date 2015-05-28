@@ -1,0 +1,413 @@
+﻿<?php
+
+/**
+ * Implements hook_menu().
+ */
+function dtbx_pricelistloader_menu() { 
+  $items = array(); 
+  $items['dtbx_pricelistloader'] = array(
+    'title' => 'Загрузка прайс-листа',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('dtbx_pricelistloader_form'),
+    'access callback' => TRUE,
+  );
+  return $items;
+}
+
+function dtbx_pricelistloader_form($form, &$form_state) {
+
+	
+
+
+  // Обёртка для формы. Каждый раз в неё будет передаваться новая форма через ajax.
+  $form['#prefix'] = '<div id="dtbx-pricelistloader-form-wrapper">';
+  $form['#suffix'] = '</div>';
+  
+  // Данные в форме будут представлены в виде дерева, т.е. 
+  // сохранять ключи родительских элементов.
+  $form['#tree'] = TRUE;
+
+  // Если форма только что была создана, то мы окажемся на первом шаге.
+  // Если же пользователь уже "полазил" по форме, то забираем текущий шаг формы.
+  $step = empty($form_state['storage']['step']) ? 1 : $form_state['storage']['step'];
+  $form_state['storage']['step'] = $step;
+
+  // Смотрим, на каком шаге мы сейчас находимся, и в зависимости
+  // от этого показываем или скрываем часть формы.
+  switch ($step) {
+    case 1:
+  
+      // Если на первом шаге - показываем форму для первого шага.
+      $form['step1'] = array(
+        '#type' => 'fieldset', 
+        '#title' => 'Выбор прайс-листа.',
+		'#validate' => array('dtbx_pricelistloader_profile_validate')
+      );
+      
+      /*$form['step1']['age'] = array(
+        '#type' => 'select', 
+        '#title' => 'Выберите ваш возраст', 
+        '#options' => drupal_map_assoc(array('10-25', '26-50', '51-76', '77-123')),
+        '#field_suffix' => 'лет',
+      );
+	  
+	  
+	  
+      // Если этот шаг уже был пройден, то в форме должно сохраниться значение, которое выбрал пользователь.
+      // Если же такого значения нет, то указываем возраст по умолчанию.
+      if (isset($form_state['values']['step1']['age'])) {
+        $form['step1']['age']['#default_value'] = $form_state['values']['step1']['age'];
+      }*/
+      /*
+      $form['step1']['sex'] = array(
+        '#type' => 'select', 
+        '#title' => 'Укажите ваш пол', 
+        '#options' => drupal_map_assoc(array('Не определён', 'Мужской', 'Женский')),
+      );
+      // То же самое, что и для возраста. Если значение уже указывалось - подтягиваем его.
+      // Если нет - задаём своё.
+      if (isset($form_state['values']['step1']['sex'])) {
+        $form['step1']['sex']['#default_value'] = $form_state['values']['step1']['sex'];
+      }*/
+	  
+	 
+	  
+	  $form['step1']['file'] = array(
+		'#type' => 'file',
+		'#title' => 'Прайс-лист',
+		'#attributes' => array('enctype' => "multipart/form-data"),
+		'#description' => 'Выберите файл прайс-листа',
+	  );
+	  
+	  $form['#validate'][] = 'dtbx_pricelistloader_profile_validate';
+	  
+	  if (isset($form_state['values']['step1']['file'])) {
+        $form['step1']['file']['#default_value'] = $form_state['values']['step1']['file'];
+      }
+      break;
+
+    case 2:
+
+      // Задаём форму для второга шага.
+      $form['step2'] = array(
+        '#type' => 'fieldset', 
+        '#title' => t('Соответствия колонок'),
+		'#attributes' => array('class' => array('container-inline')),
+      );
+	  
+	  $letters = array('A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U');
+	  $form['step2']['name'] = array(
+        '#type' => 'select', 
+        '#title' => 'Наименование', 
+        '#options' => drupal_map_assoc($letters),
+      );
+	  
+	  $form['step2']['article'] = array(
+        '#type' => 'select', 
+        '#title' => 'Артикул', 
+        '#options' => drupal_map_assoc($letters),
+      );
+	  
+	  $form['step2']['brand'] = array(
+        '#type' => 'select', 
+        '#title' => 'Производитель', 
+        '#options' => drupal_map_assoc($letters),
+      );
+	  
+	  $form['step2']['amount'] = array(
+        '#type' => 'select', 
+        '#title' => 'Количество', 
+        '#options' => drupal_map_assoc($letters),
+      );
+	  
+	  $form['step2']['price'] = array(
+        '#type' => 'select', 
+        '#title' => 'Цена', 
+        '#options' => drupal_map_assoc($letters),
+      );
+	  
+	  
+	  
+
+      /*$default_value = empty($form_state['values']['step2']['module']) ? '' : $form_state['values']['step2']['module'];
+      $form['step2']['module'] = array(
+        '#type' => 'textfield', 
+        '#title' => 'Укажите ваш любимый модуль в Друпале', 
+        '#default_value' => $default_value, 
+        '#required' => TRUE,
+      );
+
+      $default_value = empty($form_state['values']['step2']['blog']) ? '' : $form_state['values']['step2']['blog'];
+      $form['step2']['blog'] = array(
+        '#type' => 'textfield', 
+        '#title' => 'Введите адрес любимого блога о Друпале', 
+        '#default_value' => $default_value,
+        '#field_prefix' => 'http://',
+        '#description' => 'Правильный ответ: drupalace.ru',
+      );*/
+    
+      break;
+
+    case 3:
+
+    // Задаём форму для третьего шага.    
+      $form['step3'] = array(
+        '#type' => 'fieldset', 
+        '#title' => 'Если данные введены правильно нажмите Завершить загрузку',
+      );
+	  
+	$message = '';
+	foreach ($form_state['storage']['values'] as $step1 => $values) 
+	{
+		$message .= '<br/>' . (($step1 == 'step1') ? 'Шаг 1' : 'Шаг 2') . ': <br/>';
+		foreach ($values as $key => $value) 
+		{
+			$output = '';
+			if (is_array($value)) 
+			{
+				foreach ($value as $val) 
+				{
+					$output .= $val ? $val . '; ' : '';
+				}
+				$value = implode(', ', $value);
+			}
+			else 
+			{
+				$output = $value;
+			}
+			if($key == 'file') $message .= "Файл : $output<br/>";
+			else if($key == 'name') $message .= "Наименование : $output<br/>";
+			else if($key == 'article') $message .= "Артикул : $output<br/>";
+			else if($key == 'brand') $message .= "Производитель : $output<br/>";
+			else if($key == 'amount') $message .= "Количество : $output<br/>";
+			else if($key == 'price') $message .= "Цена : $output<br/>";
+			
+			//$message .= "$key = $output<br/>";
+		}
+    } 
+	//$step = 3;
+
+      $form['step3']['drupal'] = array(
+       // '#type' => 'checkboxes', 
+        '#title' => 'Если данные введены правильно нажмите Завершить загрузку',
+		'#markup' => $message,
+        //'#options' => drupal_map_assoc(array('Да', 'Да, конечно', 'Да, и я в восторге', 'Да, и это прекрасно', 'В процессе')),
+        //'#required' => TRUE,
+      );
+      if (isset($form_state['values']['step3']['drupal'])) {
+        $form['step3']['drupal']['#default_value'] = $form_state['values']['step3']['drupal'];
+      }
+      break;
+  }
+  
+  // После того, как создали форму, надо позаботиться о том, чтобы
+  // пользователь видел правильные кнопки. В зависимости от текущего шага,
+  // будут отображаться кнопки "Следующий шаг", "Предыдущий шаг" и "Хватит".
+  
+  // Создаём обёртку для кнопок. По фэн-шую в седьмом Друпале так надо. 
+  // Верстальщики вам скажут спасибо.
+  $form['actions'] = array('#type' => 'actions');
+  
+  // Если мы на последнем шаге - то показываем кнопку "Хватит".
+  if ($step == 3) {
+    $form['actions']['submit'] = array(
+      '#type' => 'submit', 
+      '#value' => 'Завершить загрузку',
+    );
+  }
+
+  // Если мы не достигли последнего шага, то у нас обязательно
+  // будет присутствовать кнопка "Следующий шаг".
+  if ($step < 3) {
+    $form['actions']['next'] = array(
+      '#type' => 'submit', 
+      '#value' => 'Следующий шаг', 
+      // На кнопку вешаем ajax-обработчик, который будет возвращать форму
+      // в ранее созданный <div id="dtbx-pricelistloader-form-wrapper"></div>
+      '#ajax' => array(
+        'wrapper' => 'dtbx-pricelistloader-form-wrapper', 
+        'callback' => 'dtbx_pricelistloader_ajax_callback',
+      ),
+    );
+  }
+
+  // Если мы ушли с первого шага, то покажем кнопку "Предыдущий шаг".
+  if ($step > 1) {
+    $form['actions']['prev'] = array(
+      '#type' => 'submit', 
+      '#value' => 'Предыдущий шаг',    
+      // Это хороший трюк - не валидируем форму, если нажимаем кнопку "Предыдущий шаг".    
+      '#limit_validation_errors' => array(),
+      '#submit' => array('dtbx_pricelistloader_form_submit'), 
+      '#ajax' => array(
+        'wrapper' => 'dtbx-pricelistloader-form-wrapper',
+        'callback' => 'dtbx_pricelistloader_ajax_callback',
+      ),
+    );
+  }
+
+  // С чувством выполненного долга показываем пользователю форму.
+  return $form;
+}
+
+function dtbx_pricelistloader_ajax_callback($form, $form_state) {
+  // Указываем, что хотим перезагрузить всю форму, вернув её целиком.
+  return $form;
+}
+
+
+function dtbx_pricelistloader_profile_validate($form, &$form_state) 
+{
+	$validators = array(
+		'file_validate_extensions' => array('csv xls xlsx xml'),
+	);
+	
+	if ($file = file_save_upload('step1', $validators, 'public://')) {
+		
+		$arr = (array) $file;
+		$mess = '';
+		foreach ($arr as $key => $value)
+		{
+			$mess .=  "$key = $value<br/>";
+		}		
+		drupal_set_message($mess, 'status');
+		
+		$form_state['values']['step1']['file'] = str_replace("public://", "", $file->destination);
+	}
+
+}
+
+
+
+
+function dtbx_pricelistloader_form_submit($form, &$form_state) {
+
+  // Сохраняем состояние формы, полученное при переходе на новый шаг.
+  $current_step = 'step' . $form_state['storage']['step'];
+  if (!empty($form_state['values'][$current_step])) {
+    $form_state['storage']['values'][$current_step] = $form_state['values'][$current_step];
+  }
+
+  // Если перешли на следующий шаг - то увеличиваем счётчик шагов.
+  if (isset($form['actions']['next']['#value']) && $form_state['triggering_element']['#value'] == $form['actions']['next']['#value']) {
+    $form_state['storage']['step']++;
+  
+    // Если данные для следующего шага были уже введены пользователем,
+    // то восстанавливаем их и передаём в форму.
+    $step_name = 'step' . $form_state['storage']['step'];
+    if (!empty($form_state['storage']['values'][$step_name])) {
+      $form_state['values'][$step_name] = $form_state['storage']['values'][$step_name];
+    }
+  }
+  
+  // Если вернулись на шаг назад - уменьшаем счётчик шагов.
+  if (isset($form['actions']['prev']['#value']) && $form_state['triggering_element']['#value'] == $form['actions']['prev']['#value']) {
+    $form_state['storage']['step']--;
+  
+    // Забираем из хранилища данные по предыдущему шагу и возвращаем их в форму.
+    $step_name = 'step' . $form_state['storage']['step'];
+    $form_state['values'][$step_name] = $form_state['storage']['values'][$step_name];
+  }
+
+  // Если пользователь прошёл все шаги и нажал на кнопку "Хватит",
+  // то обрабатываем полученные данные со всех шагов.
+  if (isset($form['actions']['submit']['#value']) && $form_state['triggering_element']['#value'] == $form['actions']['submit']['#value']) {
+
+	$file = '';
+	$name = '';
+	$article = '';
+	$brand = '';
+	$amount = '';
+	$price = '';
+    // Показываем сообщение с введёнными данными.  
+   //$message = 'Введённые данные: <br/>';  
+    foreach ($form_state['storage']['values'] as $step => $values) {
+      //$message .= "<br/>$step: <br/>";
+      foreach ($values as $key => $value) {
+        $output = '';
+        if (is_array($value)) {
+          foreach ($value as $val) {
+            $output .= $val ? $val . '; ' : '';
+          }
+          $value = implode(', ', $value);
+        }
+        else {
+          $output = $value;
+        }
+        //$message .= "$key = $output<br/>";
+		
+		if($key == 'file') $file =  $output;
+		else if($key == 'name') $name = $output;
+		else if($key == 'article') $article =  $output;
+		else if($key == 'brand') $brand =  $output;
+		else if($key == 'amount') $amount = $output;
+		else if($key == 'price') $price = $output;
+      }
+    }
+	load_price_list($file, $name, $article,	$brand,	$amount, $price);
+ /*	$message = 'Данные загружены';
+    drupal_set_message($message); */ 
+    $form_state['rebuild'] = FALSE;
+    return;
+  }
+  // Указываем, что форма должна быть построена заново.
+  $form_state['rebuild'] = TRUE;
+}
+
+
+function load_price_list($file, $name, $article, $brand,	$amount, $price)
+{
+	global $user;
+	include 'PHPExcel/Classes/PHPExcel/IOFactory.php';
+	$objPHPExcel = PHPExcel_IOFactory::load('./sites/default/files/' . $file);
+	$sheetData = $objPHPExcel->getActiveSheet()->toArray(null,true,true,true);
+	$message = '';
+	$count = 0;
+	
+	$transaction = db_transaction();
+	
+	try { 
+		$l_user = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+		$query = 'insert into detbox.t_price_list_head 
+					(price_list_head_date, user_id, currency_id, is_posted, price_list_head_comment, price_list_head_terms) 
+				  values 
+					(\'' . date("Y-m-d H:i:s") . '\', ' . $l_user->user_id . ', 1, 1, \'\' , \'\')';
+			
+		db_query($query);	
+		$q_id = db_query('select last_insert_id() as plh_id')->fetchObject();
+	
+		foreach ($sheetData as $line)
+		{
+			if($line[$amount] != NULL && is_numeric($line[$amount]))
+			{
+				$count++;
+				$message .= ($count . ' ');
+				if($line[$name] != NULL) $message .= ('name = ' . $line[$name]);
+				if($line[$article] != NULL) $message .= (' article = ' . $line[$article]);
+				if($line[$brand] != NULL) $message .= (' brand = ' . $line[$brand]);
+				if($line[$amount] != NULL) $message .= (' amount = ' . $line[$amount]);
+				if($line[$price] != NULL) $message .= (' price = ' . $line[$price]);
+				$message .= '<br>';
+				
+				db_insert('t_price_list_detail')
+						->fields(array(
+							'price_list_head_id' => $q_id->plh_id,
+							'product_code' =>  $line[$article],
+							'product_name' => $line[$name],
+							'product_count' => $line[$amount],
+							'product_price' => str_replace(',', '', $line[$price]),
+							'vendor_id' => 1,
+							'ext_vendor_name' => $line[$brand]						
+						))
+						->execute();
+			}
+		}
+	}
+		catch (Exception $e) {
+		$transaction -> rollback();
+		watchdog_exception('watchdog', $e);
+	}	
+	
+	drupal_set_message($message);
+	
+}
