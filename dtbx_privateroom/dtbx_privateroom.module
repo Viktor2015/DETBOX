@@ -42,14 +42,22 @@ function dtbx_privateroom_menu()
         'type' => MENU_CALLBACK,
     );
 
-    $items['dtbx_privateroom/delete/%'] = array(
+	$items['dtbx_privateroom/record/delete/%ctools_js/%'] = array(
         'title' => 'Удалить',
-        'access callback' => 'dtbx_privateroom_access',
-        'page callback' => 'drupal_get_form',
-        'page arguments' => array('dtbx_privateroom_delete_pl', 2),
-        'type' => MENU_CALLBACK,
-    );
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_privateroom_record_delete',
+		'page arguments' => array(3, 4, 5),
+		
+        'type' => MENU_CALLBACK,	
+	);	
 	
+	$items['dtbx_privateroom/filial/add/%ctools_js/%'] = array(
+        'title' => 'Поиск группы',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_privateroom_filial_add',
+		'page arguments' => array(3, 4),
+		'type' => MENU_CALLBACK,	
+	);	
 	
 	return $items;
 }
@@ -148,12 +156,14 @@ function dtbx_privateroom_page($form, &$form_state)
 	$persondata = "Персональные данные";
     $profile = "Профиль пользователя";
 	$pl = "Прайс-лист";
+	$filial = "Филиалы";
 	
 	//Локация
 	
 	$ip = ip_address();
 	//$ip = '178.237.185.72';
 	$answer = ipgeo_from_xml($ip);
+	$ip_city = (is_object($answer))?$answer->city:'';
 	
 	global $user;
 	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
@@ -167,6 +177,9 @@ function dtbx_privateroom_page($form, &$form_state)
 		$juraddress = $items->company_address;
 		$realaddress = $items->company_actual_address;
 		$contact = $items->company_contact;
+		$phone = $items->company_phone;
+		$email = $items->company_email;
+		
 		//$persondata .= $items->USER_LOGIN;
         $form['user_id'] = array(
           '#type' => 'value',
@@ -202,7 +215,7 @@ function dtbx_privateroom_page($form, &$form_state)
   $form['profile']['city'] = array(
      '#type' => 'textfield',
       '#title' => t('Город'),
-    '#default_value' =>  $answer->city
+    '#default_value' =>  $ip_city
   );
   
   $form['profile']['name'] = array(
@@ -300,9 +313,15 @@ function dtbx_privateroom_page($form, &$form_state)
     '#maxlength' => 128
   );
 
-//
-
-
+  $form['access']['phone'] = array(
+    '#type' => 'textfield', 
+    '#title' => t('Телефон для заказов'), 
+    '#default_value' => $phone, 
+    '#size' => 60, 
+    '#maxlength' => 128
+  );
+  
+  
   $form['pl'] = array(
     '#type' => 'fieldset', 
     '#title' => t($pl), 
@@ -351,48 +370,88 @@ function dtbx_privateroom_page($form, &$form_state)
 
     $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_terms'] = array(
 	  '#type' => 'textarea',
+	  '#rows' => 2,
       '#default_value' => $rec->price_list_head_terms,
       '#required' => false
     );
 //////
+	$linkdel = ctools_modal_text_button(t('удалить'), 'dtbx_privateroom/record/delete/ajax/' .  $rec->price_list_head_id . '/dtbx_privateroom_pl_delete', '', 'ctools-modal-modal-popup-small');
+	
+	
 	$form['pl']['table']['data'][$rec->price_list_head_id]['del'][] = array(
-      '#markup' => l(t('удалить'), 'dtbx_privateroom/delete/' .  $rec->price_list_head_id, array('alias' => true))
+      '#markup' => $linkdel,	  
 	);
 	
-	
+
 	$form['pl']['file'] = array(
 		'#type' => 'file',
 		'#title' => 'Прайс-лист',
 		'#description' => 'Выберите файл с расширением csv',
 	  );
+	
+// ФИЛИАЛЫ		  
+	$form['filial'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t($filial), 
+		'#tree' => TRUE,
+		'#attributes' => array('class' => array('persondata')),
+		'#group' => 'vertical_tabs'	
+	); 
+	
+
+	$linkfilial = ctools_modal_text_button(t('добавить филиал'), 'dtbx_privateroom/filial/add/ajax/' .  $items->user_id, '', 'ctools-modal-modal-popup-small');
+	
+	$form['filial']['addfilial'] = array(
+			'#type' => 'fieldset', 
+			'#title' => $linkfilial, 
+	);				   
+
+	$form['filial']['table'] = array(
+		'#tree' => TRUE,
+		'#theme' => 'dtbx_privateroom_table',
+	);
+ 
+	$form['filial']['table']['header'] = array(
+		'#type' => 'value',
+		'#value' => array('Наименование' . $items->user_id, 'Юр.адрес', 'Факт.адрес', 'Контакт', 'Тел.', 'Удалить'),
+	);
+	
+	$filials = db_query('select * from t_user where owner_user_id = :user_id', 
+						array(':user_id' => $items->user_id));
+	
+	foreach ($filials as $rec) {
+	
+		$form['filial']['table']['data'][$rec -> user_id]['companyname'] = array(
+			'#markup' => $rec -> company_name
+		);
 	  
-	/*  
-	$form['pl']['file'] = array(
-		'#type' => 'managed_file',
-		'#title' => t('price list'),
-		'#description' => t('Allowed extensions: csv xls xml txt'),
-		'#upload_location' => 'public://uploads/',
-		'#upload_validators' => array(
-			'file_validate_extensions' => array('csv xls xml txt'),
-		),
-	);*/
+		$form['filial']['table']['data'][$rec -> user_id]['juraddress'] = array(
+			'#markup' => $rec -> company_address
+		);
+	  
+		$form['filial']['table']['data'][$rec -> user_id]['realaddress'] = array(
+			'#markup' => $rec -> company_actual_address
+		);
+	  
+		$form['filial']['table']['data'][$rec -> user_id]['contact'] = array(
+			'#markup' => $rec -> company_contact
+		);
+
+		$form['filial']['table']['data'][$rec -> user_id]['phone'] = array(
+			'#markup' => $rec -> company_phone
+		);	
+		
+		$linkdel = ctools_modal_text_button(t('удалить'), 'dtbx_privateroom/record/delete/ajax/' .  $rec->user_id . '/dtbx_privateroom_filial_delete' , '', 'ctools-modal-modal-popup-small');
 	
+		$form['filial']['table']['data'][$rec->user_id]['del'][] = array(
+			'#markup' => $linkdel
+		);
+	}	
 	
- /*
- $form['pl']['table']['data'][$rec->price_list_head_id]['del'] = array(
-    '#type' => 'submit',
-    '#value' => t('X'),
-    '#name' => 'id_' . $rec->price_list_head_id,
-    '#entity_id' => $rec->price_list_head_id,
-    '#ajax' => array(
-      'callback' => 'dtbx_privateroom_delete_pl',
-    ),
-    '#attributes' => array(
-      
-      'class' => array('need-confirm-button'),
-    ),
-  );
- */
+  
+//	  
+	  
+
   $module_path = drupal_get_path('module', 'dtbx_privateroom');
   $form['#attached'] = array(
     'js' => array(
@@ -400,16 +459,6 @@ function dtbx_privateroom_page($form, &$form_state)
     ),
   );	
 //////
-/*	
-    $form['pl']['table']['data'][$rec->price_list_head_id]['del'] = array(
-      '#type' => 'submit',
-	  '#value' => 'X',
-	  '#button_type' => 'button', 
-	  //'#attributes' => array('class' => array('ctools-use-modal')), 
-	  '#submit' => array('dtbx_privateroom_delete_pl'),
-	  '#name' => 'id_' . $rec->price_list_head_id
-    );
-*/	
   }
  
 //
@@ -425,64 +474,298 @@ function dtbx_privateroom_page($form, &$form_state)
 }
 
 /**
+ * Удаление записи 
+**/
+
+function dtbx_privateroom_record_delete($js, $del_id, $form_del_id){
+	
+    if ($js) {
+		
+		$css = '#modalContentQ{
+					top: 22px!important;
+					left: auto!important;
+					right: 80px!important;
+				}';
+		//$css_preprocessed = '<style type="text/css" media="all">' . "\n<!--/*--><![CDATA[/*><!--*/\n" . drupal_load_stylesheet_content($css, TRUE) . "\n/*]]>*/-->\n" . '</style>';
+		drupal_add_css($css, array('type' => 'inline'));
+		
+		
+		$form_state = array(
+			'title' => t('Удаление записи'),
+			'ajax' => TRUE,
+			'del_id' => $del_id,
+			'form_del_id' => $form_del_id,
+			
+		);
+		//ctools_stylizer_add_css
+		$output = ctools_modal_form_wrapper('dtbx_privateroom_record_delete_page', $form_state);
+		
+		if (!empty($form_state['executed'])) {
+			$output = array();
+			if ($form_state['complete']) {	
+				$ok = ctools_ajax_text_button(t('OK'), ctools_ajax_command_redirect('dtbx_privateroom'));
+				$output[] = ctools_modal_command_display(t('Удаление записи'), '<div class="modal-message">Запись удалена. <br>' . $ok . '</div>');
+			} else  {
+				if ($form_state['cancel']) {
+					$output[] = ctools_modal_command_dismiss(); 		
+				}
+			}
+		}	
+	
+		print ajax_render($output); 
+		exit;
+	} else {
+		$form['del_id'] = array(
+			'#type' => 'value',
+			'#value' => $del_id,
+			'form_del_id' => $form_del_id,
+		);	
+		drupal_get_form('dtbx_privateroom_record_delete_page', $form_state);		
+	}	
+}
+
+function dtbx_privateroom_record_delete_page($form, &$form_state){
+	
+	$del_id = $form_state['del_id'];
+	$form_del_id = $form_state['form_del_id'];
+	
+	$form['del_id'] = array(
+		'#type' => 'value',
+		'#value' => $del_id,
+	);
+    
+	$form['del_text'] = array(
+		'#markup' => 'Удалить запись № ' . $del_id . '/' .$form_del_id . '?',
+	);
+	
+	$form['del_ok'] = array(
+		'#type' => 'submit',
+		'#value' => t('Удалить'), 
+		'#submit' => array($form_del_id),
+		'#prifix' => '<div>'		
+	);
+
+	$form['del_cancel'] = array(
+		'#type' => 'submit',
+		'#value' => t('Отменить'), 
+		'#submit' => array('dtbx_privateroom_record_delete_cancel'),
+		'#suffix' => '</div>'
+	);	
+	
+	return $form;
+}
+
+function dtbx_privateroom_record_delete_cancel($form, &$form_state) {
+	$form_state['cancel'] = TRUE;
+}
+
+/**
  * Удаление прайс-листа
 **/
 
-function dtbx_privateroom_delete_pl($form, &$form_state, $pl_id){
-    $form['del_pl_id'] = array(
-        '#type' => 'value',
-        '#value' => $pl_id,
-    );
-    
-	$rows = array();
-  /*
-    foreach (element_children($form_state['values']) as $key) {
-      foreach (element_children($form['data'][$key]) as $name) {
-        //drupal_set_message($form['data'][$key][$name], 'status');
-		drupal_set_message($name, 'status');
-      }
-    }	
-	*/
-    $form['#submit'][] = 'dtbx_privateroom_delete_submit';
-	
-    return confirm_form($form,
-        'Вы действительно хотите удалить прайс-лист <i>' . check_plain($pl_id) . '</i>?',
-        'dtbx_privateroom',
-        'Восстановить удаленные прас-листы будет не возможно',
-        'Удалить',
-        'Отменить'
-    );
-}
 
-function dtbx_privateroom_delete_submit($form, &$form_state) {
-   $pl_id = $form_state['values']['del_pl_id'];
+function dtbx_privateroom_pl_delete($form, &$form_state) {
+	$pl_id = $form_state['values']['del_id'];
   //$user_id = $form_state['values']['user_id'];
    
    	global $user;
 	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
     $user_id = $items -> user_id; 
-	
-   /*db_query('update t_price_list_head plh
+	/*
+   db_query('update t_price_list_head plh
 			    set plh.is_posted = 0
 			  where plh.user_id =' . $user_id . ' and
-			        plh.price_list_head_id = ' . $pl_id);*/
+			        plh.price_list_head_id = ' . $pl_id);
+*/
+	$transaction = db_transaction();
+	
+	try {
+		db_query('delete from t_price_list_detail
+				  where t_price_list_detail.price_list_head_id = ' . $pl_id . ' and
+				    exists (select *
+						    from t_price_list_head plh
+						    where plh.user_id = 6 and
+								  plh.price_list_head_id = t_price_list_detail.price_list_head_id) ');
 
-  db_query('delete from t_price_list_detail
-			where t_price_list_detail.price_list_head_id = ' . $pl_id . ' and
-				  exists (select *
-						  from t_price_list_head plh
-						  where plh.user_id = 6 and
-								plh.price_list_head_id = t_price_list_detail.price_list_head_id) ');
-
-  db_query('delete from t_price_list_head
-   		     where price_list_head_id = ' . $pl_id. ' and 
-				   user_id =' . $user_id);
-   
-   drupal_set_message('Прайс-лист № ' . $pl_id . ' удален!');
-   drupal_goto('dtbx_privateroom');
-   $form_state['rebuild'] = true;
-  	
+		db_query('delete from t_price_list_head
+				  where price_list_head_id = ' . $pl_id. ' and 
+				    user_id =' . $user_id);
+  
+   	}
+		catch (Exception $e) {
+		$transaction -> rollback();
+		watchdog_exception('watchdog', $e);
+	}	
+	
+	$form_state['complete'] = TRUE;	
 }
+
+
+/**
+ *
+**/
+
+/**
+ * ФИЛИАЛ
+**/
+function dtbx_privateroom_filial_add($js, $userid)
+{	
+	global $user;
+	if ($js == 'ajax') {
+		$form_state = array(
+			'title' => t('Добавление записи'),
+			'ajax' => TRUE
+		);
+  
+		$output = ctools_modal_form_wrapper('dtbx_privateroom_filial_add_page', $form_state);
+		
+		if (!empty($form_state['executed'])) {
+			$output = array();
+			
+			if ($form_state['complete']) {			
+				//$ok = ctools_ajax_text_button(t('OK'), ctools_ajax_command_redirect('dtbx_privateroom'));
+				/*
+				$form_state['no_redirect'] = 0;
+				$form_state['redirect'] = array('dtbx_privateroom');
+				*/
+				$s = '';
+				foreach (element_children($form_state['values']) as $key) {
+					$s .= $key . '=' . $form_state['values'][$key] . '<br>';
+				}
+				db_query('insert into t_user
+							(user_type_id, company_name, company_address, company_actual_address, company_contact, uid, owner_user_id, company_phone)
+						  values 
+							(2, :company_name, :company_address, :company_actual_address, :company_contact, :uid, :owner_user_id, :company_phone)',
+						  array(':company_name' => $form_state['values']['companyname'], 
+								':company_address' => $form_state['values']['juraddress'], 
+								':company_actual_address' => $form_state['values']['realaddress'], 
+								':company_contact' => $form_state['values']['contact'], 
+								':uid' => $user->uid,
+								':owner_user_id' => $userid, 
+								':company_phone' => $form_state['values']['phone']
+								)
+						);
+				$ok = ctools_ajax_text_button(t('OK'), ctools_ajax_command_redirect('dtbx_privateroom'));
+				$output[] = ctools_modal_command_display(t('Добавление записи'), '<div class="modal-message">Филиал добавлен.<br>' . $ok . '</div>');
+				
+			} else  {
+				if ($form_state['cancel']) {
+					$output[] = ctools_modal_command_dismiss(); 		
+				}
+			}
+		}	
+	
+		print ajax_render($output); 
+		exit;
+	} else {
+		drupal_get_form('dtbx_privateroom_filial_add_page');
+	}	
+}
+
+function dtbx_privateroom_filial_add_page($form, &$form_state){
+	
+	$form['companyname'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Наименование филиала'), 
+		'#default_value' => $companyname, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	  );
+	  
+	$form['juraddress'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Юридический адрес'), 
+		'#default_value' => $juraddress, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	  );
+	  
+	$form['realaddress'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Фактический  адрес'), 
+		'#default_value' => $realaddress, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	  );
+	  
+	$form['contact'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Контактное лицо'), 
+		'#default_value' => $contact, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	  );
+
+	$form['phone'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Телефон для заказов'), 
+		'#default_value' => $phone, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	  );
+	
+	$form['submit'] = array(
+		'#type' => 'submit', 
+		'#value' => t('Сохранить'),
+		'#attributes' => array(
+			'class' => array('ctools-use-ajax form-submit'),
+			'id' => array('edit-add-url')
+		),
+		
+		'#submit' => array('dtbx_privateroom_filial_add_submit')
+	);
+	
+	
+	return $form;
+}
+
+function dtbx_privateroom_filial_add_submit($form, &$form_state){
+	$form_state['complete'] = TRUE;
+}
+
+function dtbx_privateroom_filial_delete($form, &$form_state) {
+	$del_id = $form_state['values']['del_id'];
+	
+	global $user;
+	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+    $user_id = $items -> user_id; 
+	
+	//drupal_set_message('del_id = ' . $del_id . '<br>user_id = ' .  $user_id, 'status');
+	
+	$transaction = db_transaction();
+	
+	try { 
+		
+		db_query('delete from t_price_list_detail
+				  where exists (select *
+								from t_price_list_head plh
+								where plh.user_id = ' . $del_id . ' and
+									  plh.price_list_head_id = t_price_list_detail.price_list_head_id) ');
+
+		db_query('delete from t_price_list_head
+				  where user_id = ' . $del_id );
+			 
+		db_query('delete from t_user 
+				  where owner_user_id = :owner_user_id and
+				  user_id = :user_id',
+				array(
+					':owner_user_id' => $user_id,
+					':user_id' => $del_id
+				)
+			 );
+		
+	}
+		catch (Exception $e) {
+		$transaction -> rollback();
+		watchdog_exception('watchdog', $e);
+	}	
+	
+	$form_state['complete'] = TRUE;	
+}
+
+/**
+ * 
+**/
 
 
 /**
@@ -518,17 +801,17 @@ function dtbx_privateroom_profile_validate($form, &$form_state) {
 	global $user;
 
  /// file upload
-	drupal_set_message('start validation', 'status');
+	//drupal_set_message('start validation', 'status');
 	$validators = array(
 		'file_validate_extensions' => array('csv xls xml'),
 	);
 	if ($file = file_save_upload('pl', $validators, 'public://')) {
 		drupal_set_message('file uploaded', 'status');
 		$form_state['values']['file'] = $file; 
-	} else
+	} /*else
 	{
 		drupal_set_message('not file uploaded', 'error');
-	}
+	}*/
 	//////////////////
 	
  //Профиль   
@@ -666,7 +949,8 @@ function dtbx_privateroom_submit($form, &$form_state) {
 				  u.company_name = :company_name, 
 				  u.company_address = :company_address, 
 				  u.company_actual_address = :company_actual_address, 
-				  u.company_contact = :company_contact 
+				  u.company_contact = :company_contact,
+				  u.company_phone = :company_phone
               where u.uid = :uid', 
 		   array(':user_surname' => $form_state['values']['access']['surname'],
 				 ':user_name' => $form_state['values']['access']['firstname'],
@@ -675,6 +959,7 @@ function dtbx_privateroom_submit($form, &$form_state) {
 				 ':company_address' => $form_state['values']['access']['juraddress'],
 				 ':company_actual_address' => $form_state['values']['access']['realaddress'],
 				 ':company_contact' =>  $form_state['values']['access']['contact'],
+				 ':company_phone' =>  $form_state['values']['access']['phone'],
 				 ':uid' => $user->uid
 		   ));
 		   

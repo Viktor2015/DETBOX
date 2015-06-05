@@ -1,0 +1,410 @@
+<?php
+
+/**
+ * init().
+ */
+
+  
+function dtbx_reports_init() {
+ static $already_added = FALSE;
+	
+	ctools_include('ajax');
+      
+  if ($already_added) {
+    return; 
+  }	  
+  $already_added = TRUE; 
+}
+
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_reports_menu() 
+{
+
+    $items['dtbx_reports'] = array(
+        'title' => 'Отчетность',
+        'access callback' => true,
+        'page callback' => 'drupal_get_form',
+		'page arguments' => array('dtbx_reports_page'),		
+        'type' => MENU_CALLBACK,
+    );
+	
+	$items['dtbx_reports/filter/%ctools_js/%'] = array(
+        'title' => 'Фильтр отчета',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_reports_filter',
+		'page arguments' => array(2, 3),
+		'delivery callback' => 'ajax_deliver',
+        'type' => MENU_CALLBACK,	
+	);
+/*
+	$items['dtbx_reports/preview/%ctools_js/%'] = array(
+        'title' => 'Просмотр отчета',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_reports_preview',
+		'page arguments' => array(2, 3),
+		'delivery callback' => 'ajax_deliver',
+        'type' => MENU_CALLBACK,	
+	);		
+	
+	$items['dtbx_reports/test/%ctools_js/%'] = array(
+        'title' => 'Просмотр отчета',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_reports_test',
+		'page arguments' => array(2, 3),
+		'delivery callback' => 'ajax_deliver',
+        'type' => MENU_CALLBACK,	
+	);*/
+	
+	return $items;
+}
+
+function dtbx_reports_page($form, &$form_state) 
+{	
+	
+	$lr_month 	= l('По запросам', 'dtbx_reports/filter/ajax/search', array('attributes' => array('class' => 'use-ajax')));
+	$lr_day 	= l('По контактам', 'dtbx_reports/filter/ajax/view', array('attributes' => array('class' => 'use-ajax')));
+	$lr_res 	= l('По результатам поиска', 'dtbx_reports/filter/ajax/groupsearch', array('attributes' => array('class' => 'use-ajax')));
+	
+	$form['reports_link'] = array(
+		'#markup' => $lr_month . '&nbsp;&nbsp;&nbsp;' . $lr_day . '&nbsp;&nbsp;&nbsp;' . $lr_res . '&nbsp;&nbsp;&nbsp;',
+    );
+	
+	$form['report'] = array(
+		'#markup' => '',
+		'#prefix' => '<div class="container-inline">',
+		'#suffix' => '</div>',
+
+	);
+
+	$form['report']['filter'] = array(
+		'#prefix' => '<div id = "form-ajax-report-filter">',
+		'#suffix' => '</div>',
+		'#markup' => '',
+		'#weight' => 1999, //set weight to show markup at the bottom of the form
+	);
+	
+    $form['report']['preview'] = array(
+		'#prefix' => '<div id = "form-ajax-report-preview">',
+		'#suffix' => '</div>',
+		'#markup' => '',
+		'#weight' => 2000, //set weight to show markup at the bottom of the form
+    );
+ 
+	return $form;
+}
+
+function dtbx_reports_filter($js, $reportname){
+	
+	$form = drupal_get_form('dtbx_reports_filter_page', $reportname);
+	
+	$html = drupal_render($form);
+	
+	if ($js == 'ajax') {
+		$commands = array();
+		$commands[] = ajax_command_html('#form-ajax-report-filter', $html);
+		$commands[] = ajax_command_html('#form-ajax-report-preview', '');
+		return array('#type' => 'ajax', '#commands' => $commands);
+	} else {
+		return $html;
+	}
+}
+
+
+function dtbx_reports_filter_page($form, &$form_state, $reportname){
+	
+	$form['reportname'] = array('#type' => 'hidden', '#value' => $reportname);
+	
+	$form['filter_date'] = array(
+		'#type' => 'fieldset', 
+		'#title' => 'Период', 
+		'#tree' => TRUE,
+	);
+  
+	$form['filter_date']['date_begin'] = array(
+		'#type' => 'date',
+		'#title' => t('Начало периода'),
+		'#default_value' =>  ''
+	);
+
+	$form['filter_date']['date_end'] = array(
+		'#type' => 'date',
+		'#title' => t('Конец периода'),
+		'#default_value' =>  ''
+	);
+	
+	$form['filter_date']['type'] = array(
+		'#type' => 'select',
+		'#title' => t('Группировка'),
+		'#options' => array("По месяцам", "По дням недели")
+	);
+	
+	
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Применить'),
+		'#submit' => array('dtbx_reports_filter_page_submit'),
+		'#ajax' => array(
+					'callback' => 'dtbx_reports_filter_page_ajax_callback'
+					),
+	);	
+	
+	return $form;
+}
+
+function dtbx_reports_filter_page_submit($form, &$form_state) {
+  $form_state['rebuild'] = TRUE;
+}
+
+function dtbx_reports_filter_page_ajax_callback($form, &$form_state) {
+	
+	$reportname = $form_state['values']['reportname'];
+	$type = $form_state['values']['filter_date']['type'];
+	
+	/*
+	foreach (element_children($form_state['values']['filter_date']) as $key){
+		drupal_set_message($key . '=' . $form_state['values']['filter_date'][$key], 'status');
+	}
+	
+	drupal_set_message($type, 'status');
+	*/
+	$date = $form_state['values']['filter_date']['date_begin'];
+	$startdate = $date['year'] . '-' . $date['month'] . '-' . $date['day'];
+	
+	$date = $form_state['values']['filter_date']['date_end'];
+	$enddate = $date['year'] . '-' . $date['month'] . '-' . $date['day'];
+	
+	switch($reportname) {
+
+		case 'search': $html = dtbx_reports_stat_search($startdate, $enddate, $type);
+		break;
+
+		case 'view': $html = dtbx_reports_stat_view($startdate, $enddate, $type);
+		break;		
+		
+		case 'groupsearch': $html = dtbx_reports_stat_group_search($startdate, $enddate, $type);
+		break;
+
+	}
+	
+	$commands = array();
+	$commands[] = ajax_command_html('#form-ajax-report-preview', $html);
+	return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+function dtbx_reports_stat_search($startdate, $enddate, $type){
+	
+	switch($type) {
+		
+		case 0: {
+			$result = db_query("select elt(month(ss.stat_search_date), 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь') as group_name,
+									   max(ss.stat_search_ip) as stat_search_ip,
+									   ss.stat_search_text,
+									   count(*) as cnt_q
+								from t_stat_search ss
+								where DATE_FORMAT(ss.stat_search_date , '%Y-%m-%d') between DATE_FORMAT(:startdate, '%Y-%m-%d') and DATE_FORMAT(:enddate, '%Y-%m-%d')
+								group by month(ss.stat_search_date),
+										 ss.stat_search_text
+								order by 1, 4 desc",
+								array(':startdate' => $startdate, ':enddate' => $enddate));			
+			break;
+		}
+		
+		case 1: {
+			$result = db_query("select weekday(ss.stat_search_date) as index_day,
+					  		   elt(weekday(ss.stat_search_date) + 1, 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Восресенье') as group_name,
+							   max(ss.stat_search_ip) as stat_search_ip,
+							   ss.stat_search_text,
+							   count(*) as cnt_q
+						from t_stat_search ss
+						where DATE_FORMAT(ss.stat_search_date , '%Y-%m-%d') between DATE_FORMAT(:startdate, '%Y-%m-%d') and DATE_FORMAT(:enddate, '%Y-%m-%d')
+						group by weekday(ss.stat_search_date),
+								 ss.stat_search_text
+						order by 1, 5 desc",
+						array(':startdate' => $startdate, ':enddate' => $enddate));	
+			break;
+		}
+		
+	}
+	
+						
+	$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th>Группировка</th><th>Адрес</th><th>Поисковые фразы</th><th>Кол-во запросов</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=4>Статистика по запросам</th></tr></thead><tbody id="fbody">';
+						   
+	foreach($result as $item){
+		$output .= '<tr><td>' . $item -> group_name.
+		           '</td><td>' . $item -> stat_search_ip .
+				   '</td><td>'. $item -> stat_search_text .
+				   '</td><td>' . $item -> cnt_q . '</td></tr>';
+	}
+	$output .= '</tbody></table>';	
+
+	
+	return $output;
+}
+
+function dtbx_reports_stat_view($startdate, $enddate, $type){
+	
+	switch($type) {
+		
+		case 0: {
+			$result = db_query("select 	elt(month(sw.stat_view_date), 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь') as group_name,
+										max(sw.stat_view_ip) as stat_view_ip,
+										sw.stat_view_product_code,
+										sw.stat_view_product_name,
+										sw.stat_view_vendor_name,
+										su.user_login as seller_user_login,
+										u.user_login,
+										count(*) as cnt_q
+								from t_stat_view sw
+								left join t_user u on u.user_id = sw.user_id
+								left join t_user su on su.user_id = sw.seller_user_id
+								where DATE_FORMAT(sw.stat_view_date , '%Y-%m-%d') between DATE_FORMAT(:startdate, '%Y-%m-%d') and DATE_FORMAT(:enddate, '%Y-%m-%d')
+								group by sw.stat_view_product_code,
+										 sw.stat_view_product_name,
+										 sw.stat_view_vendor_name,
+										 su.user_login,
+										 u.user_login",
+								array(':startdate' => $startdate, ':enddate' => $enddate));				
+			break;
+		}
+		case 1: {
+			$result = db_query("select weekday(sw.stat_view_date) as index_day,
+									   elt(weekday(sw.stat_view_date) + 1, 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Восресенье') as group_name,
+									   max(sw.stat_view_ip) as stat_view_ip,
+									   sw.stat_view_product_code,
+									   sw.stat_view_product_name,
+									   sw.stat_view_vendor_name,
+									   su.user_login as seller_user_login,
+									   u.user_login,
+									   count(*) as cnt_q
+								from t_stat_view sw
+								left join t_user u on u.user_id = sw.user_id
+								left join t_user su on su.user_id = sw.seller_user_id
+								where DATE_FORMAT(sw.stat_view_date , '%Y-%m-%d') between DATE_FORMAT(:startdate, '%Y-%m-%d') and DATE_FORMAT(:enddate, '%Y-%m-%d')
+								group by sw.stat_view_product_code,
+											sw.stat_view_product_name,
+											sw.stat_view_vendor_name,
+											su.user_login,
+											u.user_login",
+								array(':startdate' => $startdate, ':enddate' => $enddate));
+			break;								
+		}
+	}
+	$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th>Группировка</th><th>Адрес</th><th>Номер</th><th>Наименование</th><th>Производитель</th><th>Поставщик</th><th>Клиент</th><th>Кол-во запросов</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=8>Статистика по контактам</th></tr></thead><tbody id="fbody">';
+						   
+	foreach($result as $item){
+		$output .= '<tr><td>' . $item -> group_name . 
+					'</td><td>' . $item -> stat_search_ip . 
+					'</td><td>'. $item -> stat_view_product_code . 
+					'</td><td>'. $item -> stat_view_product_name . 
+					'</td><td>'. $item -> stat_view_vendor_name . 
+					'</td><td>'. $item -> seller_user_login . 
+					'</td><td>'. $item -> user_login . 
+					'</td><td>' . $item -> cnt_q . 
+					'</td></tr>';
+	}
+	$output .= '</tbody></table>';	
+
+	
+	return $output;	
+}
+
+function dtbx_reports_stat_group_search($startdate, $enddate, $type){
+	
+	switch($type) {
+		
+		case 0: {
+			$result = db_query("select 	 elt(month(sgs.stat_group_search_date), 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь') as group_name,
+										 max(sgs.stat_group_search_ip) as stat_group_search_ip,
+										 sgs.product_code,
+										 sgs.product_name,
+										 sgs.vendor_name,
+										 u.user_login,
+										 count(*) as cnt_q,
+										 avg(sgs.stat_group_search_count) as avg_result_ssearch 
+								from t_stat_group_search sgs
+								left join t_user u on u.user_id = sgs.user_id
+								where DATE_FORMAT(sgs.stat_group_search_date, '%Y-%m-%d') between DATE_FORMAT(:startdate, '%Y-%m-%d') and DATE_FORMAT(:enddate, '%Y-%m-%d')
+								group by sgs.stat_group_search_date,
+											sgs.stat_group_search_ip,
+											sgs.product_code,
+											sgs.product_name,
+											sgs.vendor_name,
+											u.user_login
+								order by 1, 4 desc",
+								array(':startdate' => $startdate, ':enddate' => $enddate));			
+			break;
+		}
+		
+		case 1: {
+			$result = db_query("select 	 weekday(sgs.stat_group_search_date) as index_day,
+										 elt(weekday(sgs.stat_group_search_date) + 1, 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Восресенье') as group_name,
+										 max(sgs.stat_group_search_ip) as stat_group_search_ip,
+										 sgs.product_code,
+										 sgs.product_name,
+										 sgs.vendor_name,
+										 u.user_login,
+										 count(*) as cnt_q,
+										 avg(sgs.stat_group_search_count) as avg_result_ssearch 
+								from t_stat_group_search sgs
+								left join t_user u on u.user_id = sgs.user_id
+								where DATE_FORMAT(sgs.stat_group_search_date, '%Y-%m-%d') between DATE_FORMAT(:startdate, '%Y-%m-%d') and DATE_FORMAT(:enddate, '%Y-%m-%d')
+								group by sgs.stat_group_search_date,
+											sgs.stat_group_search_ip,
+											sgs.product_code,
+											sgs.product_name,
+											sgs.vendor_name,
+											u.user_login
+						order by 1, 5 desc",
+						array(':startdate' => $startdate, ':enddate' => $enddate));	
+			break;
+		}
+		
+	}
+	
+						
+	$output = '<div class="table-view search-page"><table><thead>
+		       <tr><th>Группировка' . $startdate . $enddate . $type .'</th><th>Адрес</th><th>Номер</th><th>Наименование</th><th>Производитель</th><th>Клиент</th><th>Кол-во запросов</th><th>Ср. кол-во предложений</th></tr>
+		       <tr bgcolor=#F6F5F7><th colspan=8>Статистика по результатам поиска</th></tr></thead><tbody id="fbody">';
+	
+						   
+	foreach($result as $item){
+		$output .= '<tr><td>' . $item -> group_name.
+		           '</td><td>' . $item -> stat_group_search_ip .
+				   '</td><td>'. $item -> product_code .
+				   '</td><td>'. $item -> product_name .
+				   '</td><td>'. $item -> vendor_name .
+				   '</td><td>'. $item -> user_login .
+				   '</td><td>' . $item -> cnt_q . 
+				   '</td><td>' . $item -> avg_result_ssearch . '</td></tr>';
+	}
+	$output .= '</tbody></table>';	
+
+	
+	return $output;
+}
+
+
+/**
+* Page access.
+**/
+
+function dtbx_reports_access() {
+  global $user;
+  return ($user->uid > 0);
+}
+/*
+function dtbx_reports_submit($form, &$form_state)
+{
+  // return $form;
+}
+
+*/
+?>
