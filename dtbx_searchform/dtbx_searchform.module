@@ -182,6 +182,11 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
 								 from t_car_brend
 								 where car_brend_id = :car_brend_id',
 								array(':car_brend_id' => $brendid)) -> fetchField();
+								
+	
+								
+	$output = '';
+	
 	
 	//web каталоги
 	$web_catalog = db_query('select wc.web_catalog_name,
@@ -210,9 +215,7 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
 		$output .=	'<tr><td>' . $link . '</td><td>' . $item->web_catalog_text . '</td></tr>';
 	}
 	$output .= '</table></div>';
-								
-	//$output = '<br><br><br><a href="http://catalog.detbox.ru/' . strtolower($car_brend_name) . 
-	//		'/">Визуальный каталог<br><div style="width: 289px;border: solid 1px black;"><img src="http://detbox.ru/' . drupal_get_path('module', 'dtbx_searchform') . '/Group.png"></div></a>';
+	
 		//$output .= ('<main class="content title">' . $item->car_brend_name . '</main><ul class="list">');
 	
 	
@@ -234,7 +237,7 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
     $output .= '<table>';
 	foreach($result_brend as $item_brend)
 	{
-		$li = ($modelid == $item_brend->car_model_id) ? ' <li type="disc">' : '<li type="circle">';
+		$li = ($modelid == $item_brend->car_model_id) ? ' <li class="lactiv">' : '<li class="lpasiv">';
 		
 		$link = '<a href="/dtbx_searchform/car/' . $cartypeid . '/' . $brendid . '/' . $item_brend->car_model_id . '" title="( с ' . $item_brend->car_model_begin . ' по ' . $item_brend->car_model_end . ')">';	
 		
@@ -293,8 +296,8 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
 										 where ds.DES_TEX_ID = dt.TEX_ID and
 										 	   ds.DES_LNG_ID = 16 and
 											   ds.DES_ID = t.TYP_KV_AXLE_DES_ID) as axle_type_name,	   
-										concat(\'Объем: \', round(t.TYP_CCM / 1000, 1)) as engine_power,
-										concat(\'Мощность: \', t.TYP_KW_FROM, \' кВт.\') as engine_capacity,
+										concat(\'\', round(t.TYP_CCM / 1000, 1)) as engine_power,
+										concat(\'-\', t.TYP_KW_FROM, \' кВт.\') as engine_capacity,
 
 									   (select en.ENG_CODE  
 										 from tecdoc.tof_engines en
@@ -309,19 +312,16 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
 		{
 			$output .= '<tr>';
 			
-			$li = ($modeltypeid == $item_type->car_model_type_id) ? ' <li type="disc">' : '<li type="circle">';
+			$li = ($modeltypeid == $item_type->car_model_type_id) ? ' <li class="lactiv2">' : '<li class="lpasiv2">';
 			
 			$link = '<a href="/dtbx_searchform/car/' . $cartypeid . '/' . $brendid . '/' . $modelid . '/' . $item_type->car_model_type_id .'">';
-			
-			$output .= ('<td>' . $li . '</a></li></td>');
-			$output .= ('<td>' . $link . $item_type->car_model_type_name . '</a></td>');
-			$output .= ('<td>' . $link . $item_type->engine_type_name . '</a></td>');
-			$output .= ('<td>' . $link . $item_type->engine_code . '</a></td>');
-			$output .= ('<td>' . $link . $item_type->engine_power . '</a></td>');
-			$output .= ('<td>' . $link . $item_type->engine_capacity . '</a></td>');
-			$output .= ('<td>' . $link . $item_type->axle_type_name . '</a></td>');
-			
-			
+			$output .= ('<td id="prob"></td>');
+			$output .= ('<td>' . $li . $link . $item_type->car_model_type_name . '	[' .
+					   $item_type->engine_code . ']	' . 
+					   $item_type->engine_power . 
+					   $item_type->engine_capacity . 
+					   $item_type->axle_type_name . 
+				   '</a></li></td>');
 						  
 		}							
 		
@@ -333,7 +333,7 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
 	if (!($modeltypeid == 0)) {
 		$output .= '<td>';
 		
-		drupal_add_js('misc/jquery.min.js');
+		//drupal_add_js('misc/jquery.min.js');
 		drupal_add_js('misc/jstree.min.js');
 		drupal_add_css('misc/style.min.css');
 		
@@ -437,7 +437,7 @@ function dtbx_searchform_car($cartypeid, $brendid, $modelid = 0, $modeltypeid = 
 			$prev_level--;
 		}
 		
-		$output .= '</ul></div><script>$("#html").jstree();</script>';
+		$output .= '</ul></div><script>jQuery("#html").jstree();</script>';
 		
 		$output .= '</td></tr></table>';		
 		$output .= '</td>';
@@ -751,7 +751,7 @@ function dtbx_searchform_tires($tiresid)
 function dtbx_searchform_partgroup($type, $typeid, $pgid)
 {
 	$detail = false;
-	
+	$output = '';
 // ЗАПЧАСТИ	
 	if(strpos($type, 'parts') !== false)
 	{
@@ -792,7 +792,7 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 						order by 4',  
 	                    array(':LAT_TYP_ID' => $typeid, ':LGS_STR_ID' => $pgid));
 	
-		$output = '<div class="table-view search-page"><table><thead>
+		$output .= '<div class="table-view search-page"><table><thead>
 		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
 		       <tr bgcolor=#F6F5F7><th colspan=4>ОРИГИНАЛЬНЫЕ НОМЕРА</th></tr></thead><tbody id="fbody">';
 	
@@ -800,13 +800,17 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 		foreach($detail as $item)
 		{
 			$articul = 2000;
+			$br = 'HYUNDAI';
 			$link = ctools_modal_text_button($item -> ARL_SEARCH_NUMBER, '/dtbx_searchform/info/article/' . $item -> ART_ID . '/' . $item -> LAT_GA_ID . '/nojs', '', 'ctools-modal-modal-popup-medium');
-		
+			
+			//$link_gs = l('Показать цену >>', 'dtbx_searchform/group/serach/ajax/' . $articul . '/1/' . $item -> BRA_BRAND, array('attributes' => array('class' => 'use-ajax')));		
+			$link_gs = l('Показать цену >>', 'dtbx_searchform/group/serach/ajax/' . $articul . '/1/' . $br, array('attributes' => array('class' => 'use-ajax')));		
+			
 			$output .= '<tr><td>' . (($item -> BRA_BRAND == $bernd_name)? '' : $item -> BRA_BRAND) . 
 				  '</td><td>' . $link . '</a>' .
 				  '</td><td>' . $item -> TEX_TEXT . 
-				  '</td><td><a href="/dtbx_searchform/search/' . $articul . '/0/">Показать цену >></a></td></tr>';
-				  //'</td><td><a href="/dtbx_searchform/group/serach/nojs/' . $articul . '/0/' . $item -> BRA_BRAND . '/">Показать цену >></a></td></tr>';
+				  //'</td><td><a href="/dtbx_searchform/search/' . $articul . '/1/">Показать цену >></a></td></tr>';
+				  '</td><td>' . $link_gs . '</td></tr>';
 			$bernd_name = $item -> BRA_BRAND;
 		}
 	
@@ -845,15 +849,17 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 		foreach($detail as $item)
 		{
 			$articul = 2000;
+			$br = 'HYUNDAI';
+			
 			$link_art = ctools_modal_text_button($item -> ART_ARTICLE_NR, '/dtbx_searchform/info/article/' . $item -> ART_ID . '/' . $item -> LAT_GA_ID . '/nojs', '', 'ctools-modal-modal-popup-medium');
 			$link_sup = ctools_modal_text_button($item -> SUP_BRAND, '/dtbx_searchform/info/supplier/' . $item -> SUP_ID . '/' . 0 . '/nojs', '', 'ctools-modal-modal-popup-medium');
-			//'</td><td><a href="/dtbx_searchform/info/' . $articul . '/1/" class="ctools-use-modal ctools-modal-modal-popup-medium">' . $item -> ART_ARTICLE_NR . '</a>' .
+			//$link_gs = l('Показать цену >>', 'dtbx_searchform/group/serach/ajax/' . $articul . '/1/' . $item -> SUP_BRAND, array('attributes' => array('class' => 'use-ajax')));		
+			$link_gs = l('Показать цену >>', 'dtbx_searchform/group/serach/ajax/' . $articul . '/1/' . $br, array('attributes' => array('class' => 'use-ajax')));		
 		
 			$output .= '<tr><td>' . (($item -> SUP_BRAND == $bernd_name)? '' : $link_sup) .
 				   '</td><td>'. $link_art . '</a>' .
 				   '</td><td>' . $item -> TEX_TEXT . // $tcri .
-				   '</td><td><a href="/dtbx_searchform/search/' . $articul . '/0/">Показать цену >></a></td></tr>';
-				   //'</td><td><a href="/dtbx_searchform/group/serach/nojs/' . $articul . '/0/' . $item -> SUP_BRAND . '/">Показать цену >></a></td></tr>';				   
+				   '</td><td>' . $link_gs . '</td></tr>';				   
 			$bernd_name = $item -> SUP_BRAND;
 		}
 		$output .= '</tbody></table>';
@@ -896,7 +902,7 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 								  ':rim' => $params[0],
 								  ':et' => $params[4],
 								  ':brand' => $brand));
-		$output = '<div class="table-view search-page"><table><thead>
+		$output .= '<div class="table-view search-page"><table><thead>
 				   <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
 				   <tr bgcolor=#F6F5F7><th colspan=4>ДИСКИ</th></tr></thead><tbody id="fbody">';
 	
@@ -965,7 +971,7 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 								  ':brand' => $brand,
 								  ':season' => $season)
 								  );
-		$output = '<div class="table-view search-page"><table><thead>
+		$output .= '<div class="table-view search-page"><table><thead>
 		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
 		       <tr bgcolor=#F6F5F7><th colspan=4>ШИНЫ</th></tr></thead><tbody id="fbody">';
 	
@@ -1056,7 +1062,7 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 								  ':product_property_id_2' => $params_list[1][0], ':product_property_value_id_2' => $params_list[1][1], 
 								  ':product_property_id_3' => $params_list[2][0], ':product_property_value_id_3' => $params_list[2][1] 
 								));
-		$output = '<div class="table-view search-page"><table><thead>
+		$output .= '<div class="table-view search-page"><table><thead>
 		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
 		       <tr bgcolor=#F6F5F7><th colspan=4>МАСЛА</th></tr></thead><tbody id="fbody">';
 	
@@ -1160,7 +1166,7 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 								  ':product_property_id_3' => $params_list[2][0], ':product_property_value_id_3' => $params_list[2][1], 
 								  ':product_property_id_4' => $params_list[3][0], ':product_property_value_id_4' => $params_list[3][1] 
 								));
-		$output = '<div class="table-view search-page"><table><thead>
+		$output .= '<div class="table-view search-page"><table><thead>
 		       <tr><th class="proizv">производитель</th><th class="proizv">номер</th><th>наименование</th><th>цена<br>руб.</th></tr>
 		       <tr bgcolor=#F6F5F7><th colspan=4>АККУМУЛЯТОРЫ</th></tr></thead><tbody id="fbody">';
 	
@@ -1256,10 +1262,6 @@ function dtbx_searchform_partgroup($type, $typeid, $pgid)
 function dtbx_searchform_info($type, $param1, $param2, $js)
 {
 	if ($js) {
-		
-		
-
-
 	  
 	  /*$example_style = array(
       'example-contact-style' => array(
@@ -1337,29 +1339,7 @@ function dtbx_searchform_info($type, $param1, $param2, $js)
 			case 'sellerinfo': {
 				$form = drupal_render(drupal_get_form('dtbx_sellerinfo_page', $param1));
 				break;
-			}
-			case 'test': {
-				//$form = drupal_render(drupal_get_form('dtbx_test_page'));
-				//$form = drupal_render(drupal_get_form('dtbx_manufacturers_page'));
-				//$form = '<div class="form-textarea-wrapper resizable"><textarea id="edit-fio-text" name="fio_text" cols="60" rows="5" class="form-textarea"></textarea></div>';
-				
-				$form_el = array();
-				
-				$form_el['fio'] = array(
-					'#type' => 'textfield',
-					'#title' => t('Номер телефона'),
-					'#default_value' => 'Номер телефона',
-				);  
-
-				$form_el['fio_text'] = array(
-					'#type' => 'textarea',
-					'#title' => t('Сообщение'),		
-				);  			
-					
-				$form = drupal_render($form_el);				
-				break;
-			}
-			
+			}	
 			case 'tires_photo': {
 				$result = db_query('select bs.photo_1, bs.description
 									from filter_tires.bc_shop_tires bs
@@ -1439,7 +1419,7 @@ function get_search_result($searchvalue, $searchtype){
 			
 			$str_query .= ' AND (
 			                     UPPER(concat(ext_vendor_name, \' \', product_code_search, \' \', product_name)) LIKE UPPER(\'%' . $elements[0] . '%\'))';
-								 // or UPPER(concat(ext_vendor_name, \' \', product_code, \' \', product_name)) LIKE UPPER(\'%' . translit($elements[0]) . '%\'))';
+								 // or UPPER(concat(ext_vendor_name, \' \', product_code_search, \' \', product_name)) LIKE UPPER(\'%' . translit($elements[0]) . '%\'))';
 					            
 			
 			if($countelements > 1)
@@ -1447,7 +1427,7 @@ function get_search_result($searchvalue, $searchtype){
 				for($i = 1; $i < $countelements; $i++) 
 				  $str_query .= ' AND (
 			                     UPPER(concat(ext_vendor_name, \' \', product_code_search, \' \', product_name)) LIKE UPPER(\'%' . $elements[$i] . '%\'))';
-								 // or UPPER(concat(ext_vendor_name, \' \', product_code, \' \', product_name)) LIKE UPPER(\'%' . translit($elements[$i]) . '%\'))';
+								 // or UPPER(concat(ext_vendor_name, \' \', product_code_search, \' \', product_name)) LIKE UPPER(\'%' . translit($elements[$i]) . '%\'))';
 									 
 			}
 			
@@ -1500,10 +1480,14 @@ function get_search_result($searchvalue, $searchtype){
 
 function dtbx_searchform_group($searchvalue, $searchtype)
 {
+	/*
 	$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.js"></script>
 				 <script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.tablesorter.min.js"></script>';
-	$my_js_code = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/selectfilter.js"></script>';
+	*/
+	$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.tablesorter.min.js"></script>';
 	
+	$my_js_code = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/selectfilter.js"></script>';
+
 	
 	/*
 	$str_query = "";
@@ -1671,9 +1655,7 @@ function dtbx_searchform_group($searchvalue, $searchtype)
 
 function dtbx_searchform_group_search($js, $partcode, $searchtype, $partbrend)
 {
-	
 	$html = dtbx_searchform_search($partcode, $searchtype, $partbrend);
-	
 	if ($js == 'ajax') {
 		$commands = array();
 		
@@ -1888,9 +1870,9 @@ function dtbx_searchform_order_page($form, &$form_state){
 		//$form['#submit'] = array('dtbx_searchform_order_submit');		
 	$form['actions']['submit']['#submit'][] = 'dtbx_searchform_order_submit';	
 	
-	return $form;
-	
+	return $form;	
 }
+
 
 function dtbx_searchform_order_validate($form, &$form_state) {
 	form_set_error('contact', 'Введите данные');
@@ -1945,14 +1927,14 @@ function dtbx_searchform_page($form, &$form_state, $output = "")
 	
 	$ip = ip_address();
 	$ip = '178.237.185.72';
-	//$answer = ipgeo_from_xml($ip);
-	$answer = '';
+	$answer = ipgeo_from_xml($ip);
 	$curregid = 0;
-	
 	$ip_region = (is_object($answer))?$answer->subject:'';
 	
 	$regions = get_region_array($ip_region, $curregid);
-	
+
+
+
 	$form['search']['region'] = array(
         '#title' => t('Регион:'),
         '#attributes' => array('class' => array('left-search')),
@@ -2074,7 +2056,11 @@ function dtbx_searchform_page($form, &$form_state, $output = "")
 						$build = _block_get_renderable_array($block_content);
 						//print drupal_render($build);
 						$news = drupal_render($build); 
-						$output .= '<td width=25%>' . $brend . '</td><td width=15%>' . $news . '</td></tr>';
+						$output .= '<td width=40%>' . $news . $brend . '</div></td></tr>';
+						
+					
+						
+						
 						//$output .= $brend;
 						break;
 					} 
@@ -2167,9 +2153,8 @@ function dtbx_searchform_search($partcode, $searchtype, $partbrend = NULL, $regi
 			);	
 ///	
 	
-	//$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.js"></script>
-	
-	$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.tablesorter.min.js"></script>';
+	$myjspath = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/jquery.tablesorter.min.js"></script>';				 
+				 
 	$my_js_code = '<script type="text/javascript" src="' . $GLOBALS['base_url'] . '/misc/selectfilter.js"></script>';
 	
 				
@@ -2278,12 +2263,11 @@ function dtbx_searchform_search($partcode, $searchtype, $partbrend = NULL, $regi
 		{
 			$filter_producer .= '<option value="' . $item . '">' . $item . '</option>';
 		}
-
+		
 		foreach ($sellers as $item)
 		{
 			$filter_seller .= '<option value="' . $item . '">' . $item . '</option>';
 		}
-		
 		$filter_producer .= '</select>';
 		$filter_seller .= '</select>';
 		/////////////////////////////
@@ -2293,6 +2277,7 @@ function dtbx_searchform_search($partcode, $searchtype, $partbrend = NULL, $regi
 		//$ip = '178.237.185.72';
 		//$answer = ipgeo_from_xml($ip);
 		/////////////////////////////
+		
 		
 		foreach ($allitems as $item)
 		{
@@ -2331,8 +2316,6 @@ function dtbx_searchform_search($partcode, $searchtype, $partbrend = NULL, $regi
 			$strdate = ($item->price_list_head_date == $today) ? "<span class=\"actual\"></span> Сегодня" : "<span class=\"actual inactual\"></span> $item->price_list_head_date";
 		
 			$link_usr = ctools_modal_text_button(t($item->company_name), '/dtbx_searchform/info/sellerinfo/' . $item->user_id . '/1/nojs', '', 'ctools-modal-sellerinfo-contact-style');
-			//$link_usr = ctools_modal_text_button(t($item->company_name), '/dtbx_searchform/info/test/1/1/nojs', '', 'ctools-modal-sellerinfo-contact-style');
-			
 			
 			$row = '<tr>
 						<td class="first"></td>
@@ -2353,7 +2336,7 @@ function dtbx_searchform_search($partcode, $searchtype, $partbrend = NULL, $regi
 		else
 			$output .= ('</tbody></table></div>' . $my_js_code);
 	/*}*/
-
+	
 	return $output;
 }
 
