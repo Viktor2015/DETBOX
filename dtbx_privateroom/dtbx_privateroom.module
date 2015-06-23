@@ -19,10 +19,11 @@ static $already_added = FALSE;
   // Add CTools' javascript to the page.
   //ctools_modal_add_js();
   
-  $path = drupal_get_path('module', 'dtbx_privateroom');
+  //$path = drupal_get_path('module', 'dtbx_privateroom');
   //drupal_add_js($path . '/js/dtbx_privateroom.js', array('weight' => -20));
-  
-  $already_added = TRUE;
+	drupal_add_library ( 'system' , 'ui.tabs' );
+	drupal_add_js ( 'jQuery(document).ready(function(){jQuery("#tabs").tabs();});' , 'inline' );
+	$already_added = TRUE;
 }
 
 /**
@@ -37,11 +38,20 @@ function dtbx_privateroom_menu()
         'title' => 'Личные данные',
         'access callback' => 'dtbx_privateroom_access',
         'page callback' => 'dtbx_privateroom_callback',
-		//'page arguments' => array(1),		
+		'page arguments' => array(1),		
 
         'type' => MENU_CALLBACK,
     );
 
+	$items['dtbx_privateroom/record/add/%ctools_js/%'] = array(
+        'title' => 'Удалить',
+        'access callback' => TRUE,
+        'page callback' => 'dtbx_privateroom_record_add',
+		'page arguments' => array(3, 4, 5),
+		'delivery callback' => 'ajax_deliver',
+        'type' => MENU_CALLBACK,	
+	);	
+	
 	$items['dtbx_privateroom/record/delete/%ctools_js/%'] = array(
         'title' => 'Удалить',
         'access callback' => TRUE,
@@ -81,7 +91,7 @@ function dtbx_privateroom_theme() {
 **/
 
 //function dtbx_privateroom_callback($ajax) 
-function dtbx_privateroom_callback() 
+function dtbx_privateroom_callback($activetab) 
 {
   /*if ($ajax) {
     global $user;
@@ -99,7 +109,7 @@ function dtbx_privateroom_callback()
     print ajax_render($output);
   }
   else {*/
-    return drupal_get_form('dtbx_privateroom_page');
+    return drupal_get_form('dtbx_privateroom_page', $activetab);
   /*}	*/
 }
 
@@ -143,20 +153,59 @@ function dtbx_privateroom_form_process_password_confirm($element) {
 }
 
 
-function dtbx_privateroom_page($form, &$form_state) 
+function dtbx_privateroom_page($form, &$form_state, $activetab = 0) 
 {
 
+	$profile = "Профиль пользователя";
+	
+	$persondata = "Персональные данные";
 	$surname = "";
 	$firstname = "";
 	$patronname = "";
+	$phone = "";
+	$email = "";
+	$uregion = "";
+	$ucity = "";
+	$uregionid = -1;
+	$ucityid = -1;
+	
+	$company = "Компания";
+	$companyid = -1;
 	$companyname = "";
-	$juraddress = "";
-	$realaddress = "";
-	$contact = "";
-	$persondata = "Персональные данные";
-    $profile = "Профиль пользователя";
-	$pl = "Прайс-лист";
+	$companyogrn = "";
+	$companyinn = "";
+	$companyboss = "";
+	$companybuh = "";
+	$companybank = "";
+	$companyla = "";
+	$companyaa = "";
+	$companylaid = -1;
+	$companyaaid = -1;
+	
+	$fdealer = 0;
+	$fvin = 0;
+	$fonline = 0;
+	$frepair = 0;
+	$fretailing = 0;
+	$fwholesale = 0;
+	$fcourier = 0;
+	$fregion = 0;
+	$flag_post = 0;
+	
+	$pl = "Прайс-листы";
 	$filial = "Филиалы";
+	$balance = "Баланс";
+	
+	switch ($activetab){
+		case 0: $activetabname = 'profile'; break;
+		case 1: $activetabname = 'persondata'; break;
+		case 2: $activetabname = 'company'; break;
+		case 3: $activetabname = 'pl'; break;
+		case 3: $activetabname = 'balance'; break;
+	}
+
+	
+	
 	
 	//Локация
 	
@@ -166,230 +215,781 @@ function dtbx_privateroom_page($form, &$form_state)
 	$ip_city = (is_object($answer))?$answer->city:'';
 	
 	global $user;
-	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+	$items = db_query('select * from v_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
 	
 	if(count($items) > 0)
 	{
 		$surname = $items->user_surname;
 		$firstname = $items->user_name;
 		$patronname = $items->user_patronymic;
+		$phone = $items->user_phone;
+		$email = $items->user_email;
+		$uregionid = ($items->region_id == null) ? -1 : $items->region_id;
+		$ucityid = ($items->city_id == null) ? -1 : $items->city_id;
+		
+		
+		$address = ($items->city_id == null) ? null : $items->region_name . ', ' . $items->city_name;
+		
+		/*
+		
 		$companyname = $items->company_name;
 		$juraddress = $items->company_address;
 		$realaddress = $items->company_actual_address;
 		$contact = $items->company_contact;
 		$phone = $items->company_phone;
 		$email = $items->company_email;
-		
+		$flag_post = ($items->flag_post_pl == 1);
+		$details = $items->company_details;
+		*/
 		//$persondata .= $items->USER_LOGIN;
         $form['user_id'] = array(
           '#type' => 'value',
-          '#value' => $items->user_id
+          '#value' => $items->user_id,		  
         );		
 	}
   
-  //$form['#attributes'] = array('class' => 'ctools-use-modal');
+  
  
-  $form['vertical_tabs'] = array(
-    '#type' => 'vertical_tabs',
-	'#title' => $items->user_login, 
-	//'#default_tab' => 'edit-pl'
-  ); 
+	$form['vertical_tabs'] = array(
+		'#type' => 'vertical_tabs',
+		'#title' => $items->user_login, 
+		'#default_tab' => $activetabname
+	); 
+  
 //
-  module_load_include('pages.inc', 'user');
-  $form_user = drupal_get_form('user_profile_form', $user, 'account');
-  /*
-  $form_user['account']['#group'] = 'vertical_tabs';
-  $form_user['locale']['#group'] = 'vertical_tabs';
-  $form_user['picture']['#group'] = 'vertical_tabs';    
-  */ 
+	module_load_include('pages.inc', 'user');
+	$form_user = drupal_get_form('user_profile_form', $user, 'account');
+
  
-  $form['profile'] = array(
-    '#type' => 'fieldset', 
-    '#title' => t($profile), 
-    '#tree' => TRUE,
-    '#attributes' => array('class' => array('profile')),
-	'#group' => 'vertical_tabs',
-	'#validate' => array('dtbx_privateroom_profile_validate')
-  );
-  
-  $form['profile']['city'] = array(
-     '#type' => 'textfield',
-      '#title' => t('Город'),
-    '#default_value' =>  $ip_city
-  );
-  
-  $form['profile']['name'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Username'),
-    '#size' => 60,
-    '#maxlength' => USERNAME_MAX_LENGTH,
-	'#default_value' => $user->name,
-    '#required' => TRUE
-  );
-  
-  $form['profile']['mail'] = array(
-    '#type' => 'textfield',
-    '#title' => t('E-mail address'),
-    '#maxlength' => EMAIL_MAX_LENGTH,
-    '#required' => TRUE,
-    '#default_value' => $user->mail,  
-  );
+	$form['profile'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t($profile), 
+		'#tree' => TRUE,
+		'#attributes' => array('class' => array('profile')),
+		'#group' => 'vertical_tabs',
+		'#id' => 'profile',
+		'#validate' => array('dtbx_privateroom_profile_validate')
+	);
 
-  $form['profile']['current_pass'] = array(
-    '#type' => 'password',
-    '#size' => 25,
-    '#title' => t('Current password'),	
-  );
-  
-  $form['profile']['pass'] = array(
-    '#type' => 'password_confirm',
-    '#size' => 25,
-	'#process' => array('form_process_password_confirm', 'dtbx_privateroom_form_process_password_confirm'),
-  );   
+	$form['profile']['name'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Username'),
+		'#size' => 60,
+		'#maxlength' => USERNAME_MAX_LENGTH,
+		'#default_value' => $user->name,
+		'#required' => TRUE
+	);
+	  
+	$form['profile']['mail'] = array(
+		'#type' => 'textfield',
+		'#title' => t('E-mail address'),
+		'#maxlength' => EMAIL_MAX_LENGTH,
+		'#required' => TRUE,
+		'#default_value' => $user->mail,  
+	);
+
+	$form['profile']['current_pass'] = array(
+		'#type' => 'password',
+		'#size' => 25,
+		'#title' => t('Current password'),			
+	  );
+	  
+	$form['profile']['pass'] = array(
+		'#type' => 'password_confirm',
+		'#size' => 25,
+		'#process' => array('form_process_password_confirm', 'dtbx_privateroom_form_process_password_confirm'),
+	);   
   
 
-//   
-  $form['access'] = array(
-    '#type' => 'fieldset', 
-    '#title' => t($persondata), 
-    '#tree' => TRUE,
-    '#attributes' => array('class' => array('persondata')),
-	'#group' => 'vertical_tabs'
-  );  
-  
-  $form['access']['surname'] = array(
-    '#type' => 'textfield', 
-	'#title' => t('Фамилия'), 
-    '#default_value' => $surname, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  $form['access']['firstname'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Имя'), 
-    '#default_value' => $firstname, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  $form['access']['patronname'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Отчество'), 
-    '#default_value' => $patronname, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  $form['access']['companyname'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Наименование компании'), 
-    '#default_value' => $companyname, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  $form['access']['juraddress'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Юридический адрес'), 
-    '#default_value' => $juraddress, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  $form['access']['realaddress'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Фактический  адрес'), 
-    '#default_value' => $realaddress, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  $form['access']['contact'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Контактное лицо'), 
-    '#default_value' => $contact, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
+// Персональные данные  
+	$form['access'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t($persondata), 
+		'#tree' => TRUE,
+		'#attributes' => array('class' => array('persondata')),
+		'#name' => 'persondata',
+		'#group' => 'vertical_tabs',
+		'#id' => 'persondata',
+	);  
+	  
+	$form['access']['surname'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Фамилия'), 
+		'#default_value' => $surname, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	);
+	  
+	$form['access']['firstname'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Имя'), 
+		'#default_value' => $firstname, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	);
+	  
+	$form['access']['patronname'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Отчество'), 
+		'#default_value' => $patronname, 
+		'#size' => 60, 
+		'#maxlength' => 128
+	);
+	  
+	$form['access']['phone'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('Телефон для заказов'), 
+		'#default_value' => $phone, 
+		'#size' => 60, 
+		'#maxlength' => 128,		
+	);
 
-  $form['access']['phone'] = array(
-    '#type' => 'textfield', 
-    '#title' => t('Телефон для заказов'), 
-    '#default_value' => $phone, 
-    '#size' => 60, 
-    '#maxlength' => 128
-  );
-  
-  
-  $form['pl'] = array(
-    '#type' => 'fieldset', 
-    '#title' => t($pl), 
-    '#tree' => TRUE,
-    '#attributes' => array('class' => array('pl')),
-	'#group' => 'vertical_tabs'	
-  ); 
+	$form['access']['email'] = array(
+		'#type' => 'textfield', 
+		'#title' => t('e-mail для заказов'), 
+		'#default_value' => $email, 
+		'#size' => 60, 
+		'#maxlength' => 128,		
+	);
+	
+	$addressbutton = ctools_modal_text_button(
+		'Сменить', 
+		'dtbx_select_city/ajax/#form-ajax-region/#regionid/#cityid', '', 'ctools-modal-modal-popup-medium'
+	);
+	
+	$form['access']['address']['laddress'] = array(
+		'#type' => 'textfield',
+		'#title' =>'Регион/Город',
+		'#disabled' => true,
+		'#id' => 'form-ajax-region',
+		'#default_value' => $address,
+	);
+	
+	$form['access']['address']['caddress'] = array(
+		'#type' => 'item',
+		'#title' => $addressbutton,
+		'#prefix' => '<div class="changeregion">',
+		'#suffix' => '</div><br>',
+	);
+	
+	$form['access']['region'] = array(
+		'#type' => 'hidden',
+		'#default_value' => $uregionid,
+		'#attributes' => array('id' => 'regionid')
+	);
+	
+	$form['access']['city'] = array(
+		'#type' => 'hidden',
+		'#default_value' => $ucityid,
+		'#attributes' => array('id' => 'cityid')
+	);
+	
+	/*
+	$form['access']['region'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Регион   ') . '<a href=#>выбрать</a>',
+		'#default_value' => $uregion,
+	);
+	
+	$form['access']['city'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Город') . '<a href=#>выбрать</a>',
+		'#default_value' => $ucity,
+	);
+	*/
+// Данные компании  
+	$qcompany = db_query('select c.*,
+								 la.*,
+								 aa.*
+						from t_company c
+						left join (select 	a.address_id as legal_address_id,
+											r.region_name as legal_region_name, 
+											ct.city_name as legal_city_name,
+											a.street_name as legal_street_name, 
+											a.house_number as legal_house_number,
+											a.region_id as legal_region_id,
+											a.city_id as legal_city_id
+									  from 	t_address a,
+											t_region r,
+											t_city ct
+									  where a.region_id = r.region_id and
+											a.city_id = ct.city_id) la on la.legal_address_id = c.company_legal_address_id
+											  
+						left join (select 	a.address_id as actual_address_id,
+											r.region_name as actual_region_name, 
+											ct.city_name as actual_city_name,
+											a.street_name as actual_street_name, 
+											a.house_number as actual_house_number,
+											a.region_id as actual_region_id,
+											a.city_id as actual_city_id
+									  from 	t_address a,
+											t_region r,
+											t_city ct
+									  where a.region_id = r.region_id and
+											a.city_id = ct.city_id) aa on aa.actual_address_id = c.company_actual_address_id
+						where c.user_id = :user_id', array(':user_id' => $items->user_id))->fetchObject();
+	
+	//drupal_set_message('count:' . count($qcompany) . $items->user_id);
+	
+	if (is_object($qcompany) > 0) {
+		$companyid = $qcompany -> company_id;
+		$companyname = $qcompany -> company_name;
+		$companyogrn = $qcompany -> company_ogrn;
+		$companyinn = $qcompany -> company_inn;
+		$companyboss = $qcompany -> company_boss;
+		$companybuh = $qcompany -> company_buh;
+		$companybank = $qcompany -> company_bank_details;
+		
+		$companyla = ($qcompany -> legal_address_id != null) ? $qcompany -> legal_region_name . ', ' . $qcompany -> legal_city_name : null; 
+		$lregionid = $qcompany -> legal_region_id;
+		$lcityid = $qcompany -> legal_city_id;
+		$lstreet = $qcompany -> legal_street_name;
+		$lhouse = $qcompany -> legal_house_number;
+		
+		
+		$companyaa = ($qcompany -> actual_address_id != null) ? $qcompany -> actual_region_name . ', ' . $qcompany -> actual_city_name : null;
+		$aregionid = $qcompany -> actual_region_id;
+		$acityid = $qcompany -> actual_city_id;
+		$astreet = $qcompany -> actual_street_name;
+		$ahouse = $qcompany -> actual_house_number;
+		
+		
+		$companylaid = ($qcompany -> legal_address_id != null) ? $qcompany -> legal_address_id : -1;
+		$companyaaid = ($qcompany -> actual_address_id != null) ? $qcompany -> actual_address_id : -1;
+		
+		$fdealer = $qcompany -> flag_dealer;
+		$fvin = $qcompany -> flag_in_vin;
+		$fonline = $qcompany -> flag_online_store;
+		$frepair = $qcompany -> flag_repair;
+		$fretailing = $qcompany -> flag_retailing;
+		$fwholesale = $qcompany -> flag_wholesale;
+		$fcourier = $qcompany -> flag_courier;
+		$fregion = $qcompany -> flag_send_region;
+		
+		//может ли размещать прайс-листы
+		$flag_post = ($qcompany->flag_post_pl == 1);
+	}
 
-  $form['pl']['table'] = array(
-    '#tree' => TRUE,
-    '#theme' => 'dtbx_privateroom_table',
-  );
- 
-  $form['pl']['table']['header'] = array(
-    '#type' => 'value',
-    '#value' => array('Номер', 'Размещен', 'Дата', 'Примечание', 'Инфо', 'Удалить'),
-  );
+	$form['company'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t($company), 
+		'#tree' => TRUE,
+		'#attributes' => array('class' => array('company')),
+		'#group' => 'vertical_tabs',
+		'#id' => 'company'
+	); 
+	
+	$form['company']['menu'] = array(
+		'#markup' => '<ul>
+							<li><a href="#main">Данные компании</a></li>
+							<li><a href="#info">Информация</a></li>
+							<li><a href="#flags">Доп.услуги</a></li>
+					    </ul>',
+		'#prefix' => '<div id="tabs">',
+		
+	); 
 
+// main
 
+	$form['company']['main'] = array(
+		'#type' => 'container',
+		'#tree' => TRUE,
+		'#prefix' => '<div id="main"><table><tr>',
+		'#suffix' => '</tr></table></div>',
+	);
+	
+	$form['company']['main']['field']['company_name'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Наименование компании'),
+		'#default_value' => $companyname,
+		'#prefix' => '<td>',		
+	);
+	
+	$form['company']['main']['field']['company_ogrn'] = array(
+		'#type' => 'textfield',
+		'#title' => t('ОРГН'),
+		'#default_value' => $companyogrn,
+	);
+
+	$form['company']['main']['field']['company_inn'] = array(
+		'#type' => 'textfield',
+		'#title' => t('ИНН/КПП'),
+		'#default_value' => $companyinn,
+	);		
+
+	$form['company']['main']['field']['company_boss'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Директор'),
+		'#default_value' => $companyboss,
+	);		
+
+	$form['company']['main']['field']['company_buh'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Бухгалтер'),
+		'#default_value' => $companybuh,
+	);
+	
+	$form['company']['main']['field']['company_bank_details'] = array(
+		'#type' => 'textarea',
+		'#title' => t('Банковские реквизиты'),
+		'#default_value' => $companybank,		
+	);
+//	Фактический адрес
+
+	$form['company']['main']['nofield']['aaddress'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t('Фактический адрес'),
+		'#tree' => TRUE,
+		'#weight' => 10,
+		'#attributes' => array('class' => array('aaddress')),
+		'#id' => 'aaddress'
+	);	
+	
+	
+	$addressbutton = ctools_modal_text_button(
+		'Сменить', 
+		'dtbx_select_city/ajax/#form-ajax-aregion/#aregionid/#acityid', '', 'ctools-modal-modal-popup-medium'
+	);
+	
+	$form['company']['main']['nofield']['aaddress']['laaddress'] = array(
+		'#type' => 'textfield',
+		'#title' =>'Регион/Город',
+		'#disabled' => true,
+		'#id' => 'form-ajax-aregion',
+		'#default_value' => $companyaa,
+	);
+	
+	$form['company']['main']['nofield']['aaddress']['caaddress'] = array(
+		'#type' => 'item',
+		'#title' => $addressbutton,
+		'#prefix' => '<div class="changeregion">',
+		'#suffix' => '</div><br>',
+	);
+	
+	$form['company']['main']['nofield']['aaddress']['region'] = array(
+		'#type' => 'hidden',
+		'#default_value' => $aregionid,
+		'#attributes' => array('id' => 'aregionid')
+	);
+	
+	$form['company']['main']['nofield']['aaddress']['city'] = array(
+		'#type' => 'hidden',
+		'#default_value' => $acityid,
+		'#attributes' => array('id' => 'acityid')
+	);
+	
+	$form['company']['main']['nofield']['aaddress']['street'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Улица'),
+		'#default_value' => $astreet,
+	);
+
+	$form['company']['main']['nofield']['aaddress']['house_number'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Дом'),
+		'#default_value' => $ahouse,
+	);
+	
+//
+
+// Юридический адрес
+	$form['company']['main']['nofield']['laddress'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t('Юридический адрес'),
+		'#tree' => TRUE,
+		'#weight' => 20,
+		'#attributes' => array('class' => array('laddress')),
+		'#id' => 'laddress'
+
+	);
+	
+	$addressbutton = ctools_modal_text_button(
+		'Сменить', 
+		'dtbx_select_city/ajax/#form-ajax-lregion/#lregionid/#lcityid', '', 'ctools-modal-modal-popup-medium'
+	);
+	
+	$form['company']['main']['nofield']['laddress']['lladdress'] = array(
+		'#type' => 'textfield',
+		'#title' =>'Регион/Город',
+		'#disabled' => true,
+		'#id' => 'form-ajax-lregion',
+		'#default_value' => $companyaa,
+	);
+	
+	$form['company']['main']['nofield']['laddress']['caaddress'] = array(
+		'#type' => 'item',
+		'#title' => $addressbutton,
+		'#prefix' => '<div class="changeregion">',
+		'#suffix' => '</div><br>',
+	);
+		
+	
+	$form['company']['main']['nofield']['laddress']['region'] = array(
+		'#type' => 'hidden',
+		'#default_value' => $lregionid,
+		'#attributes' => array('id' => 'lregionid')
+	);
+	
+	$form['company']['main']['nofield']['laddress']['city'] = array(
+		'#type' => 'hidden',
+		'#default_value' => $lcityid,
+		'#attributes' => array('id' => 'lcityid')
+	);	
+		
+	$form['company']['main']['nofield']['laddress']['street'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Улица'),
+		'#default_value' => $lstreet,
+	);
+
+	$form['company']['main']['nofield']['laddress']['house_number'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Дом'),
+		'#default_value' => $lhouse,
+	);
+	
+//	
+
+	$form_state['storage']['company_id'] = $companyid;
+	
+	$form_state['storage']['laddressid']= $companylaid;
+	$form_state['storage']['aaddressid']= $companyaaid;
+
+//
+
+//info
+	$form['company']['info'] = array(
+		'#type' => 'container',
+		'#tree' => TRUE,
+		'#prefix' => '<div id="info">',
+		'#suffix' => '</div>',
+	);
+
+	
+	$infoname = '';
+	$recno = 1;
+	$typeid = -1;
+	
+	$q_info = db_query('select * from t_company_info_type cit order by cit.company_info_type_sort');
+	
+	foreach ($q_info as $r_info) {
+		$q_infocomp = db_query('select cil.company_info_value,
+									   cil.company_info_comment,
+									   cil.company_info_link_id
+								from t_company_info_link cil
+								where cil.company_id = :company_id and
+									  cil.company_info_type_id = :company_info_type_id',
+								array(
+								':company_id' => $companyid,
+								':company_info_type_id' => $r_info -> company_info_type_id,
+								)
+							);
+		
+		$form['company']['info'][$r_info->company_info_type_id]['new'] = array(
+			'#type' => 'container',
+			'#tree' => TRUE,
+			'#prefix' => '<div id="form-ajax-info-add-' . $r_info->company_info_type_id . '">',
+			'#suffix' => '</div>',
+		);
+		
+		if ($q_infocomp -> rowCount() > 0) {
+			foreach ($q_infocomp as $r_infocomp) {
+				$form['company']['info'][$r_info->company_info_type_id]['list'][$r_infocomp->company_info_link_id] = array(
+					'#type' => 'textfield',
+					'#title' => t($r_info->company_info_type_name),
+					'#default_value' => $r_infocomp->company_info_value
+				);
+			}
+		}  else	{
+				$form['company']['info'][$r_info->company_info_type_id]['new'][] = array(
+					'#type' => 'textfield',
+					'#title' => t($r_info->company_info_type_name),
+					'#default_value' => ''
+				);
+		}
+		
+
+		
+		//
+		if (empty($form_state['executed'])) {
+			$form_state['storage']['company']['info'][$r_info->company_info_type_id]['new'] =
+				isset($form_state['storage']['company']['info'][$r_info->company_info_type_id]['new']) ? $form_state['storage']['company']['info'][$r_info->company_info_type_id]['new'] : 0;
+				
+			if ($form_state['storage']['company']['info'][$r_info->company_info_type_id]['new']) {
+				for ($i = 1; $i <= $form_state['storage']['company']['info'][$r_info->company_info_type_id]['new']; $i++) {
+					$form['company']['info'][$r_info->company_info_type_id]['new'][] = array(
+						'#type' => 'textfield',
+						'#title' => t($r_info->company_info_type_name),
+						'#default_value' => ''
+					);
+				}
+			}
+			$form_state['storage']['company']['info'][$r_info->company_info_type_id]['new']++;
+		} else {
+			$form_state['storage']['company']['info'][$r_info->company_info_type_id]['new'] = 0;
+		}
+		
+		
+		//
+		
+		$form['company']['info'][$r_info->company_info_type_id]['add'] = array(
+			'#type' => 'button',
+			'#value' => 'Добавить ' . $r_info->company_info_type_name,
+			'#id' => 'type-id-' . $r_info->company_info_type_id,
+			'#attributes' => array('class' => array('form-add-info')),
+			'#ajax' => array(
+				'callback' => 'dtbx_privateroom_info_add',
+				//'method' => 'append', 
+				'wrapper' => 'form-ajax-info-add-' . $r_info->company_info_type_id
+			)	
+		);	
+	}
+//
+
+//flags
+	$form['company']['flags'] = array(
+		'#type' => 'container',
+		'#tree' => TRUE,
+		'#prefix' => '<div id="flags">',
+		'#suffix' => '</div>',
+	);
+	
+	$form['company']['flags']['checkboxes'] = array(
+		'#type' => 'checkboxes',
+		'#options' => array(
+			'flag_dealer' => 'Официальный дилер',
+			'flag_in_vin' => 'Запросы по VIN',
+			'flag_online_store' => 'Есть интернет-магазин',
+			'flag_repair' => 'Есть СТО',
+			'flag_retailing' => 'Торговля в розницу',
+			'flag_wholesale' => 'Торговля оптом',
+			'flag_courier' => 'Доставка курьером',
+			'flag_send_region' => 'Доставка в регионы'
+		),
+		'#default_value' => array(
+			($fdealer == 1)		?'flag_dealer'		:'',
+			($fvin == 1)		?'flag_in_vin'			:'',
+			($fonline == 1)		?'flag_online_store'		:'',
+			($frepair == 1)		?'flag_repair'		:'',
+			($fretailing == 1)	?'flag_retailing'	:'',
+			($fwholesale == 1)	?'flag_wholesale'	:'',
+			($fcourier == 1)	?'flag_courier'		:'',
+			($fregion == 1)		?'flag_send_region'		:'',
+		)
+	);
+//	
+	
+	$form['pl'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t($pl), 
+		'#tree' => TRUE,
+		'#attributes' => array('class' => array('pl')),
+		'#group' => 'vertical_tabs',
+		'#id' => 'pl'
+	); 
+
+	$form['pl']['content'] = array(
+		'#prefix' => '<div id="form-ajax-pl">',
+		'#suffix' => '</div>'
+	);
+	
+	if (!$flag_post){
+		$form['pl']['content'][] = array(
+			'#markup' => 'Для размещения прайс-листа Вам необходимо <a href="#" id="lid">заполнить</a> форму Компании.',
+			'#prefix' => '<div>',
+			'#suffix' => '</div>'
+		);				
+
+		$form['pl']['content']['link']['#attached']['js'][] = array(
+		'data' =>  'jQuery(
+						function(){
+							jQuery("#lid").click(function() {
+								$fieldsets = jQuery(".vertical-tab-button");
+								$fieldsets.each(function (idx, domEl) {									
+									$title = jQuery("strong", domEl);
+									if ($title.text() == \'' . t($company) . '\') {
+										$title.click();										
+									}
+									
+								});
+							});
+						}
+					);',
+		'type' => 'inline'
+		);
+	} else {
+  	
+		//$linkadd = l(t('добавить'), 'dtbx_privateroom/record/add/ajax/pl_add', array('attributes' => array('class' => 'recordadd use-ajax')));
+		$linkadd = l(t('Загрузить'), 'dtbx_privateroom/record/add/ajax/pl_add', array('attributes' => array('class' => 'use-ajax')));
+	
+	
+		$form['pl']['content']['addpl'] = array(
+			'#markup' => $linkadd,
+			'#prefix' => '<div class="recordadd">',
+			'#suffix' => '</div>',
+		);
+	
+		$form['pl']['content']['table'] = array(
+			'#tree' => TRUE,
+			'#theme' => 'dtbx_privateroom_table',
+			'#prefix' => '<div class="table-view search-page">',
+			'#suffix' => '</div>',			
+		);	  
+	
+		$form['pl']['content']['table']['header'] = array(
+			'#type' => 'value',
+			//'#value' => array('', 'Номер', 'Размещен', 'Дата', 'Примечание', 'Инфо', 'Обновить', 'Удалить'),
+			'#value' => array('', 'Номер', 'Размещен', 'Дата', 'Примечание', 'Инфо', 'Действие'),
+		);
   
-  $records = db_query("select plh.price_list_head_id, 
+		$records = db_query("select plh.price_list_head_id, 
 							  plh.is_posted, 
 							  date_format(plh.price_list_head_date, '%d.%m.%y') as price_list_head_date, 
 							  plh.price_list_head_comment, 
 							  plh.price_list_head_terms as price_list_head_terms
-			  		   from t_price_list_head plh, t_user u 
-					   where plh.user_id = u.user_id and u.uid = :uid", array(':uid' => $user->uid));
+			  		   from t_price_list_head plh
+					   where plh.company_id = :company_id", array(':company_id' => $companyid));
  
-  foreach ($records as $rec) {
-    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_id'] = array(
-      '#markup' => $rec->price_list_head_id,
-    );
+		foreach ($records as $rec) {
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id][] = array(
+				'#markup' => '',
+				'#attributes' => array('class' => array('first'))
+			);
+
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['price_list_head_id'] = array(
+				'#markup' => $rec->price_list_head_id,
+			);
  
-    $form['pl']['table']['data'][$rec->price_list_head_id]['is_posted'] = array(
-      '#type' => 'checkbox',
-      '#default_value' => $rec->is_posted
-    );
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['is_posted'] = array(
+				'#type' => 'checkbox',
+				'#default_value' => $rec->is_posted
+			);
 
-    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_date'] = array(
-      '#markup' => $rec->price_list_head_date,
-    );
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['price_list_head_date'] = array(
+				'#markup' => $rec->price_list_head_date,
+			);
 
-    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_comment'] = array(
-      '#markup' => $rec->price_list_head_comment,
-    );
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['price_list_head_comment'] = array(
+				'#markup' => $rec->price_list_head_comment,
+			);
 
-    $form['pl']['table']['data'][$rec->price_list_head_id]['price_list_head_terms'] = array(
-	  '#type' => 'textarea',
-	  '#rows' => 2,
-      '#default_value' => $rec->price_list_head_terms,
-      '#required' => false
-    );
-//////
-	$linkdel = ctools_modal_text_button(t('удалить'), 'dtbx_privateroom/record/delete/ajax/' .  $rec->price_list_head_id . '/dtbx_privateroom_pl_delete', '', 'ctools-modal-modal-popup-small');
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['price_list_head_terms'] = array(
+				'#type' => 'textarea',
+				'#rows' => 1,
+				'#default_value' => $rec->price_list_head_terms,
+				'#required' => false
+			);
+			//////
+
+			$linkupdate = ctools_modal_text_button(t('обновить'),
+					'dtbx_privateroom/record/update/ajax/' .  $rec->price_list_head_id . '/dtbx_privateroom_pl_update', 
+					'', 'ctools-modal-modal-popup-small');
+					
+			$linkdel 	= ctools_modal_text_button(t('удалить'),
+					'dtbx_privateroom/record/delete/ajax/' .  $rec->price_list_head_id . '/dtbx_privateroom_pl_delete',
+					'', 'ctools-modal-modal-popup-small');
+
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['action'][] = array(
+				//'#markup' => $linkupdate . '<br>' .$linkdel,
+				'#markup' => $linkdel,
+				'#prefix' => '<div class="pricediv">',
+				'#suffix' => '</div>',
+				
+			);
+					
+/*					
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['update'][] = array(
+				'#markup' => $linkupdate,
+				'#prefix' => '<div class="pricediv">',
+				'#suffix' => '</div>',
+				
+			);
 	
+			$form['pl']['content']['table']['data'][$rec->price_list_head_id]['del'][] = array(
+				'#markup' => $linkdel,
+				'#prefix' => '<div class="pricediv">',
+				'#suffix' => '</div>',
+			);
+*/			
+		}
+	}	
+
+//БАЛАНС	
+	$form['balance'] = array(
+		'#type' => 'fieldset', 
+		'#title' => t($balance), 
+		'#tree' => TRUE,
+		'#attributes' => array('class' => array('balance')),
+		'#group' => 'vertical_tabs',
+		'#id' => 'balance'
+	); 
 	
-	$form['pl']['table']['data'][$rec->price_list_head_id]['del'][] = array(
-      '#markup' => $linkdel,	  
+	$l_add_pay = l('Оплатить', '#');
+	
+	$form['balance']['payadd'] = array(
+		'#type' => 'item',
+		'#title' => $l_add_pay,
+		'#prefix' => '<div class="recordadd">',
+		'#suffix' => '</div>',		
 	);
 	
-
-	$form['pl']['file'] = array(
-		'#type' => 'file',
-		'#title' => 'Прайс-лист',
-		'#description' => 'Выберите файл с расширением csv',
-	  );
+	$form['balance']['table'] = array(
+		'#tree' => TRUE,
+		'#theme' => 'dtbx_privateroom_table',
+		'#prefix' => '<div class="table-view search-page">',
+		'#suffix' => '</div>',
+	);	  
 	
+	$form['balance']['table']['header'] = array(
+		'#type' => 'value',
+		'#value' => array('', 'Дата оплаты', 'Оплачено до', 'Услуга', 'Сумма'),
+	);
+	
+	$q_pay = db_query('select date_format(cp.company_pay_date, \'%d.%m.%Y\') as company_pay_date,
+							  date_format(cp.company_pay_expired_date, \'%d.%m.%Y\') as company_pay_expired_date,
+							  s.service_name,
+							  cp.company_pay_sum,
+							  cp.company_pay_id  
+						from t_company_pay cp,
+							 t_service	s
+						where cp.service_id = s.service_id and
+							  cp.company_id = :company_id
+						order by cp.company_pay_expired_date desc', 
+						array(
+							':company_id' => $companyid
+						)
+					  );
+
+	foreach ($q_pay as $item){
+		$form['balance']['table']['data'][$item -> company_pay_id][] = array(
+			'#markup' => '',
+			'#attributes' => array('class' => array('first'))
+		);
+	
+		$form['balance']['table']['data'][$item -> company_pay_id]['company_pay_date'] = array(
+			'#type' => 'item',
+			'#title' => $item -> company_pay_date,
+		);
+
+		$form['balance']['table']['data'][$item -> company_pay_id]['company_pay_expired_date'] = array(
+			'#type' => 'item',
+			'#title' => $item -> company_pay_expired_date,
+		);
+
+		$form['balance']['table']['data'][$item -> company_pay_id]['service_name'] = array(
+			'#type' => 'item',
+			'#title' => $item -> service_name,
+		);
+
+		$form['balance']['table']['data'][$item -> company_pay_id]['company_pay_sum'] = array(
+			'#type' => 'item',
+			'#title' => $item -> company_pay_sum,
+		);	
+	}
+
+
 // ФИЛИАЛЫ		  
+	/*
 	$form['filial'] = array(
 		'#type' => 'fieldset', 
 		'#title' => t($filial), 
@@ -399,11 +999,10 @@ function dtbx_privateroom_page($form, &$form_state)
 	); 
 	
 
-	$linkfilial = ctools_modal_text_button(t('добавить филиал'), 'dtbx_privateroom/filial/add/ajax/' .  $items->user_id, '', 'ctools-modal-modal-popup-small');
+	$linkfilial = ctools_modal_text_button(t('добавить'), 'dtbx_privateroom/filial/add/ajax/' .  $companyid, '', 'ctools-modal-modal-popup-small');
 	
 	$form['filial']['addfilial'] = array(
-			'#type' => 'fieldset', 
-			'#title' => $linkfilial, 
+		'#markup' => $linkfilial,
 	);				   
 
 	$form['filial']['table'] = array(
@@ -413,64 +1012,123 @@ function dtbx_privateroom_page($form, &$form_state)
  
 	$form['filial']['table']['header'] = array(
 		'#type' => 'value',
-		'#value' => array('Наименование' . $items->user_id, 'Юр.адрес', 'Факт.адрес', 'Контакт', 'Тел.', 'Удалить'),
+		'#value' => array('Наименование' . $companyid, 'Юр.адрес', 'Факт.адрес', 'Контакт', 'Тел.', 'Удалить'),
 	);
 	
-	$filials = db_query('select * from t_user where owner_user_id = :user_id', 
-						array(':user_id' => $items->user_id));
+	$filials = db_query('select * from t_company where owner_company_id = :company_id', 
+		array(':company_id' => $companyid));
 	
 	foreach ($filials as $rec) {
 	
-		$form['filial']['table']['data'][$rec -> user_id]['companyname'] = array(
+		$form['filial']['table']['data'][$rec -> company_id]['companyname'] = array(
 			'#markup' => $rec -> company_name
 		);
 	  
-		$form['filial']['table']['data'][$rec -> user_id]['juraddress'] = array(
+		$form['filial']['table']['data'][$rec -> company_id]['juraddress'] = array(
 			'#markup' => $rec -> company_address
 		);
 	  
-		$form['filial']['table']['data'][$rec -> user_id]['realaddress'] = array(
+		$form['filial']['table']['data'][$rec -> company_id]['realaddress'] = array(
 			'#markup' => $rec -> company_actual_address
 		);
-	  
-		$form['filial']['table']['data'][$rec -> user_id]['contact'] = array(
+			  
+		$form['filial']['table']['data'][$rec -> company_id]['contact'] = array(
 			'#markup' => $rec -> company_contact
 		);
 
-		$form['filial']['table']['data'][$rec -> user_id]['phone'] = array(
+		$form['filial']['table']['data'][$rec -> company_id]['phone'] = array(
 			'#markup' => $rec -> company_phone
 		);	
+				
+		$linkdel = ctools_modal_text_button(t('удалить'), 'dtbx_privateroom/record/delete/ajax/' .  $rec->company_id . '/dtbx_privateroom_filial_delete' , '', 'ctools-modal-modal-popup-small');
 		
-		$linkdel = ctools_modal_text_button(t('удалить'), 'dtbx_privateroom/record/delete/ajax/' .  $rec->user_id . '/dtbx_privateroom_filial_delete' , '', 'ctools-modal-modal-popup-small');
-	
-		$form['filial']['table']['data'][$rec->user_id]['del'][] = array(
+		$form['filial']['table']['data'][$rec->company_id]['del'][] = array(
 			'#markup' => $linkdel
 		);
 	}	
-	
-  
-//	  
-	  
-
-  $module_path = drupal_get_path('module', 'dtbx_privateroom');
-  $form['#attached'] = array(
-    'js' => array(
-      $module_path . '/js/dtbx_privateroom.js',
-    ),
-  );	
-//////
-  }
- 
+	*/
+	$module_path = drupal_get_path('module', 'dtbx_privateroom');
+		$form['#attached'] = array(
+			'js' => array(
+			$module_path . '/js/dtbx_privateroom.js',
+		),
+	);	
 //
+
   $form['submit'] = array(
     '#type' => 'submit', 
-    '#value' => t('Сохранить')
+    '#value' => t('Сохранить'),
+	'#attributes' => array(
+		'class' => array('ctools-modal-modal-popup-medium'),
+	),
+
+	
   );
  
  $form['#validate'][] = 'dtbx_privateroom_profile_validate';
  $form['#submit'][] = 'dtbx_privateroom_submit';
 
   return $form;
+}
+
+/**
+ * Список типов загрузки
+ **/
+function pl_add_page($form, &$form_state){
+	
+	$form['file'] = array(
+		'#type' => 'file',
+		//'#title' => 'Прайс-лист',
+		//'#description' => 'Выберите файл с расширением csv',
+	  );
+	  
+	return $form;
+}
+
+/**
+ * Добавление записи
+**/ 
+function dtbx_privateroom_info_add($form, &$form_state){
+	/*
+	$id = db_insert('t_company_info_link')
+		->fields(array(
+			'company_id' => 5,
+			'company_info_type_id' => 1,
+			'company_info_value' => ''
+		))
+  ->execute();
+	*/
+	
+	$id = substr($form_state['triggering_element']['#id'], 8);
+	return $form['company']['info'][$id]['new'];
+}
+
+function dtbx_privateroom_record_add($js, $form_id, $id){
+	if ($js == 'ajax') {
+		
+		$commands = array();
+		
+		switch($form_id)
+		{
+			case "pl_add": {
+				
+				$form = drupal_get_form('dtbx_pricelistloader_form');
+				$html = drupal_render($form);				
+				$commands[] = ajax_command_html('#form-ajax-pl', $html);
+				if (!empty($form_state['executed'])) {
+				//	$commands = array();
+					drupal_goto('dtbx_privateroom');
+				}
+				break;
+			}
+
+		}	
+		
+		return array(
+		'#type' => 'ajax',
+		'#commands' => $commands,
+		);
+	}
 }
 
 /**
@@ -566,12 +1224,13 @@ function dtbx_privateroom_record_delete_cancel($form, &$form_state) {
 
 function dtbx_privateroom_pl_delete($form, &$form_state) {
 	$pl_id = $form_state['values']['del_id'];
+	
   //$user_id = $form_state['values']['user_id'];
    
    	global $user;
 	$items = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
     $user_id = $items -> user_id; 
-	/*
+/*
    db_query('update t_price_list_head plh
 			    set plh.is_posted = 0
 			  where plh.user_id =' . $user_id . ' and
@@ -579,17 +1238,23 @@ function dtbx_privateroom_pl_delete($form, &$form_state) {
 */
 	$transaction = db_transaction();
 	
-	try {
+	try 
+	{
 		db_query('delete from t_price_list_detail
 				  where t_price_list_detail.price_list_head_id = ' . $pl_id . ' and
 				    exists (select *
-						    from t_price_list_head plh
-						    where plh.user_id = 6 and
+						    from t_price_list_head plh,
+								 t_company cm	
+						    where plh.company_id = cm.company_id and
+								  cm.user_id = ' . $user_id . ' and
 								  plh.price_list_head_id = t_price_list_detail.price_list_head_id) ');
 
 		db_query('delete from t_price_list_head
 				  where price_list_head_id = ' . $pl_id. ' and 
-				    user_id =' . $user_id);
+				    exists (select *
+						    from t_company cm
+							where cm.company_id = t_price_list_head.company_id and
+								  cm.user_id = ' . $user_id . ')');
   
    	}
 		catch (Exception $e) {
@@ -601,6 +1266,17 @@ function dtbx_privateroom_pl_delete($form, &$form_state) {
 }
 
 
+/**
+ *
+**/
+
+/**
+ * Информация
+**/ 
+function info_add_page($infoid) {	
+
+	return $form['company']['info'][1]['new'];
+}
 /**
  *
 **/
@@ -679,6 +1355,7 @@ function dtbx_privateroom_filial_add_page($form, &$form_state){
 		'#size' => 60, 
 		'#maxlength' => 128
 	  );
+
 	  
 	$form['realaddress'] = array(
 		'#type' => 'textfield', 
@@ -736,24 +1413,6 @@ function dtbx_privateroom_filial_delete($form, &$form_state) {
 	
 	try { 
 		
-		db_query('delete from t_price_list_detail
-				  where exists (select *
-								from t_price_list_head plh
-								where plh.user_id = ' . $del_id . ' and
-									  plh.price_list_head_id = t_price_list_detail.price_list_head_id) ');
-
-		db_query('delete from t_price_list_head
-				  where user_id = ' . $del_id );
-			 
-		db_query('delete from t_user 
-				  where owner_user_id = :owner_user_id and
-				  user_id = :user_id',
-				array(
-					':owner_user_id' => $user_id,
-					':user_id' => $del_id
-				)
-			 );
-		
 	}
 		catch (Exception $e) {
 		$transaction -> rollback();
@@ -798,22 +1457,8 @@ function dtbx_privateroom_access() {
 }
 
 function dtbx_privateroom_profile_validate($form, &$form_state) {
-	global $user;
 
- /// file upload
-	//drupal_set_message('start validation', 'status');
-	$validators = array(
-		'file_validate_extensions' => array('csv xls xml'),
-	);
-	if ($file = file_save_upload('pl', $validators, 'public://')) {
-		drupal_set_message('file uploaded', 'status');
-		$form_state['values']['file'] = $file; 
-	} /*else
-	{
-		drupal_set_message('not file uploaded', 'error');
-	}*/
-	//////////////////
-	
+	global $user;
  //Профиль   
 	//drupal_set_message('validate', 'status');
 	
@@ -849,147 +1494,242 @@ function dtbx_privateroom_profile_validate($form, &$form_state) {
       }
     }
   //
+  // Компания
+  
+	$f_key = $form_state['storage']['company_id'];
+	if ($f_key == -1) {
+		$f_key = db_insert('t_company')
+				 ->fields(array(
+					'company_name' => $form_state['values']['company']['main']['company_name'],
+					'user_id' => $form_state['values']['user_id']
+				 ))
+				->execute();
+		$form_state['storage']['company_id'] = $f_key;
+	}
+
+	//Адреса
+	$f_key = $form_state['storage']['laddressid'];
+	if ($f_key == -1) {
+		$f_key = db_insert('t_address')
+		->fields(array(
+					'country_id' => 3159
+		))->execute();
+		$form_state['storage']['laddressid'] = $f_key;
+	}
+	
+	$f_key = $form_state['storage']['aaddressid'];
+	if ($f_key == -1) {
+		$f_key = db_insert('t_address')
+		->fields(array(
+					'country_id' => 3159
+		))->execute();
+		$form_state['storage']['aaddressid'] = $f_key;
+	}
+	
+	//
+		
   //  
 }
 
 function dtbx_privateroom_submit($form, &$form_state) {
-  global $user;
-   //////// file upload
-	if(isset($form_state['values']['file']))
-	{
-		$file = $form_state['values']['file'];
-		$file->status = FILE_STATUS_PERMANENT; // Изменяем статус файла на "Постоянный"
-		file_save($file); // Сохраняем новый статус
+	
+	global $user;
+	//$transaction = db_transaction();
+	
+	//try {
 
-		$filepath = drupal_realpath($file->uri);
-		//$file_contents = file_get_contents($filepath);
-		drupal_set_message($filepath, 'status');
-		$handle = fopen($filepath, "r");
-		$datalines = array();
-		$count = 0;
-		if ($handle) 
-		{
-			while (($line = fgets($handle)) !== false) 
-			{
-				// process the line read.
-				//drupal_set_message($line, 'status');
-				$datalines[] = $line;
-				$count++;
-			}
-			fclose($handle);
-		} 
-		else 
-		{
-			// error opening the file.
-			drupal_set_message('error opening the file', 'error');
-		} 
+	//Профиль
+		$account = clone $user;
+	  
+		$edit = array(
+			'name' => $form_state['values']['profile']['name'],
+			'pass' => $form_state['values']['profile']['pass'],
+			'mail' => $form_state['values']['profile']['mail']
+		);
+	  
+		user_save($account, $edit, 'account');
+	//  
+
+	//Персональные данные	
+		$region = $form_state['values']['access']['region'];
+		$city = $form_state['values']['access']['city'];
 		
-		if(count($datalines) > 0)
-		{
-			$l_user = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
-			
-			
-			$query = 'insert into detbox.t_price_list_head 
-					(price_list_head_date, user_id, currency_id, is_posted, price_list_head_comment, price_list_head_terms) 
-					values 
-					(\'' . date("Y-m-d H:i:s") . '\', ' . $l_user->user_id . ', 1, 1, \'\' , \'\')';
-					//:price_list_head_date , :user_id, 1, 1, :price_list_head_comment, :price_list_head_terms
-			db_query($query);	
-			$q_id = db_query('select last_insert_id() as plh_id')->fetchObject();
-			
-			drupal_set_message('UserID=' . $q_id->plh_id, 'status');
-			$count1=0;
-			foreach($datalines as $oneline) 
-			{
-				if($count1 != 0)
-				{
-					$lineitems = explode(";", $oneline);
-					$prodcode = isset($lineitems[0]) ? $lineitems[0] : "";
-					$prodname = isset($lineitems[1]) ? str_replace("'", " ", $lineitems[1]) : "";
-					$prodcount = isset($lineitems[2]) ? $lineitems[2] : 0;
-					$prodprice = isset($lineitems[3]) ? str_replace(",", ".", $lineitems[3]) : 0.0;
-					$vendorname = isset($lineitems[4]) ? $lineitems[4] : "";
-					$query = 'insert into t_price_list_detail 
-					(price_list_head_id, product_code, product_name, product_count, product_price, vendor_id, ext_vendor_name) 
-					values 
-					(' . $q_id->plh_id . ', \'' . $prodcode . '\', \'' . $prodname . '\', ' . $prodcount . ' , ' . $prodprice . ',1 , \'' . $vendorname . '\')';
-					drupal_set_message($query, 'status');
-					db_query($query);
-				}
-				$count1++;
-			}
-			drupal_set_message($count . ' = ' . $count1, 'status');
+		$region = ($region == -1) ? null : $region;
+		$city = ($city == -1) ? null : $city;
+		
+		
+		
+		db_query('update t_user u 
+				  set u.user_surname = :user_surname, 
+					  u.user_name = :user_name, 
+					  u.user_patronymic = :user_patronymic, 
+					  u.user_phone = :user_phone,
+					  u.user_email = :user_email,
+					  u.region_id = :region_id,
+					  u.city_id = :city_id
+				  where u.uid = :uid', 
+			   array(':user_surname' => $form_state['values']['access']['surname'],
+					 ':user_name' => $form_state['values']['access']['firstname'],
+					 ':user_patronymic' => $form_state['values']['access']['patronname'],
+					 ':user_phone' => $form_state['values']['access']['phone'],
+					 ':user_email' => $form_state['values']['access']['email'],
+					 ':region_id' =>  $region,
+					 ':city_id' =>  $city,
+					 ':uid' => $user->uid
+			   ));
+	//	
+
+	//Компания
+		//$form['company']['main']
+		
+		$f_key = $form_state['storage']['company_id'];
+		
+		foreach (element_children($form_state['values']['company']['main']['field']) as $key) {
+			$f_name = $key;
+			$f_values = $form_state['values']['company']['main']['field'][$key];
+			db_query('update t_company cm
+					     set cm.' . $f_name . ' = ' . ($f_values == '' ? 'null' : '\'' . $f_values . '\'') . '
+					   WHERE cm.company_id = ' . $f_key);
 		}
+
+		//Адреса
+		
+		db_update('t_company')
+			->fields(array('company_legal_address_id' => $form_state['storage']['laddressid']))
+			->condition('company_id', $f_key) 
+			->execute();
+			
+		db_update('t_company')
+			->fields(array('company_actual_address_id' => $form_state['storage']['aaddressid']))
+			->condition('company_id', $f_key) 
+			->execute();
+
+		db_update('t_address')
+			->fields(array(
+				'country_id' => 3159,
+				'region_id' => $form_state['values']['company']['main']['nofield']['laddress']['region'],
+				'city_id' => $form_state['values']['company']['main']['nofield']['laddress']['city'],
+				'street_name' => $form_state['values']['company']['main']['nofield']['laddress']['street'],
+				'house_number' => $form_state['values']['company']['main']['nofield']['laddress']['house_number']
+				)
+			)
+			->condition('address_id', $form_state['storage']['laddressid'])
+			->execute();
+			
+		db_update('t_address')
+			->fields(array(
+				'country_id' => 3159,
+				'region_id' => $form_state['values']['company']['main']['nofield']['aaddress']['region'],
+				'city_id' => $form_state['values']['company']['main']['nofield']['aaddress']['city'],
+				'street_name' => $form_state['values']['company']['main']['nofield']['aaddress']['street'],
+				'house_number' => $form_state['values']['company']['main']['nofield']['aaddress']['house_number']
+				)
+			)
+			->condition('address_id', $form_state['storage']['aaddressid'])
+			->execute();
 		
 		
-		return;
-	}
-  //////////////////////
-
- //Профиль
-  $account = clone $user;
-  
-  $edit = array(
-    'name' => $form_state['values']['profile']['name'],
-    'pass' => $form_state['values']['profile']['pass'],
-    'mail' => $form_state['values']['profile']['mail']
-  );
-  
-  user_save($account, $edit, 'account');
-  
-  
-
-  
-  //Персональные данные	
-   
-	db_query('update t_user u 
-		      set u.user_surname = :user_surname, 
-				  u.user_name = :user_name, 
-				  u.user_patronymic = :user_patronymic, 
-				  u.company_name = :company_name, 
-				  u.company_address = :company_address, 
-				  u.company_actual_address = :company_actual_address, 
-				  u.company_contact = :company_contact,
-				  u.company_phone = :company_phone
-              where u.uid = :uid', 
-		   array(':user_surname' => $form_state['values']['access']['surname'],
-				 ':user_name' => $form_state['values']['access']['firstname'],
-				 ':user_patronymic' => $form_state['values']['access']['patronname'],
-				 ':company_name' => $form_state['values']['access']['companyname'],
-				 ':company_address' => $form_state['values']['access']['juraddress'],
-				 ':company_actual_address' => $form_state['values']['access']['realaddress'],
-				 ':company_contact' =>  $form_state['values']['access']['contact'],
-				 ':company_phone' =>  $form_state['values']['access']['phone'],
-				 ':uid' => $user->uid
-		   ));
-		   
-  //Прайс-лист
-  foreach (element_children($form_state['values']['pl']['table']['data']) as $key) {
-	$f_key = $key;  
-    foreach (element_children($form_state['values']['pl']['table']['data'][$key]) as $name) {
-	  $f_name = $name;
-	  $f_values = $form_state['values']['pl']['table']['data'][$key][$name];
-	  if (($form['pl']['table']['data'][$key][$name]['#type'] == 'textarea') || (($form['pl']['table']['data'][$key][$name]['#type'] == 'checkbox'))){
-		  
-		//drupal_set_message($f_key . ' ' . $f_name . ' '. $f_values . ' ' . $form['pl']['table']['data'][$key][$name]['#type'], 'status');
-		/*drupal_set_message('update t_price_list_head plh
-				 set plh.' . $f_name . ' = \'' . $f_values . '\'
-			   WHERE plh.PRICE_LIST_HEAD_ID = ' . $f_key, 'status');*/
-	  
-	  
-		db_query('update t_price_list_head plh
-				 set plh.' . $f_name . ' = \'' . $f_values . '\'
-				  WHERE plh.price_list_head_id = ' . $f_key);
-	  }		  
+		$output = '';
+		//$form['company']['info']
+		foreach (element_children($form_state['values']['company']['info']) as $key) {
+			$output .= 'key='. $key . '<br>';
+		
+			//$key - company_info_type_id
+			foreach (element_children($form_state['values']['company']['info'][$key]) as $type) {
+				$output .= 'type=' . $type . '<br>';
+				//type - list или new
+				//list - update
+				//new - insert
 				
-    }
-  }
-  
-  drupal_set_message(t('The changes have been saved.'));
-  $form_state['rebuild'] = true;
-  cache_clear_all();
+				$fields = $form_state['values']['company']['info'][$key][$type];
+				if (is_array($fields)) {
+					foreach (element_children($fields) as $field) {
+						//$field - company_info_link_id
+						$output .= 'field=' . $field . '<br>';
+						
+						switch($type) {
+							case "list"	: {
+								//$output .= 'update  company_info_type_id = '. $key . ' company_info_link_id = ' . $field . ' company_info_value =  ' . $form_state['values']['company']['info'][$key][$type][$field] . '<br>';
+								
+								db_update('t_company_info_link')
+									->fields(array('company_info_value' => $form_state['values']['company']['info'][$key][$type][$field]))
+									->condition('company_id', $f_key) 
+									->condition('company_info_type_id', $key)
+									->condition('company_info_link_id', $field)
+									->execute();
+									
+								break;
+							}
+							
+							case "new"	: { 
+								if ($form_state['values']['company']['info'][$key][$type][$field] != '') {
+									//$output .= 'insert  company_info_type_id = '. $key . ' company_info_link_id = ' . $field . ' company_info_link_value =  ' . $form_state['values']['company']['info'][$key][$type][$field] . '<br>';
+									db_insert('t_company_info_link')
+										->fields(array(
+											'company_id' => $f_key,
+											'company_info_type_id' => $key,
+											'company_info_value' => $form_state['values']['company']['info'][$key][$type][$field],
+										))
+										->execute();
+								}	
+								break;
+							}
+						}
+					}
+				}			
+			}	
+		}
+		//drupal_set_message($output, 'status');
 
-  return $form;
+		//$form['company']['flags']
+		$output = '';
+		
+		
+		foreach (element_children($form_state['values']['company']['flags']['checkboxes']) as $key) {
+			db_update('t_company')
+				->fields(array(
+					$key => (($form_state['values']['company']['flags']['checkboxes'][$key] == '0') ? 0 : 1) 
+					)
+				)
+				->condition('company_id', $f_key) 
+				->execute();
+			
+			//drupal_set_message($key . '=' . $form_state['values']['company']['flags']['checkboxes'][$key] , 'status');		
+		}	
+
+	//	   
+			  
+		//Прайс-лист
+		if (isset($form_state['values']['pl'])) {
+			foreach (element_children($form_state['values']['pl']['content']['table']['data']) as $key) {
+				$f_key = $key;  
+				foreach (element_children($form_state['values']['pl']['content']['table']['data'][$key]) as $name) {
+					$f_name = $name;
+					$f_values = $form_state['values']['pl']['content']['table']['data'][$key][$name];
+					if (($form['pl']['content']['table']['data'][$key][$name]['#type'] == 'textarea') || (($form['pl']['content']['table']['data'][$key][$name]['#type'] == 'checkbox'))){
+		  
+						db_query('update t_price_list_head plh
+									set plh.' . $f_name . ' = \'' . $f_values . '\'
+								  WHERE plh.price_list_head_id = ' . $f_key);
+					}		  
+				}
+			}
+		}	
+	  
+		drupal_set_message(t('Изменения сохранены'));	  
+		//ajax_message_box('submit', 'Изменения сохранены', '');
+		/*
+   	}
+		catch (Exception $e) {
+		$transaction -> rollback();
+		watchdog_exception('watchdog', $e);
+		drupal_set_message($e, 'error');
+	}
+	*/
+	$form_state['rebuild'] = TRUE;
+	//cache_clear_all();
+	
+	return $form;
 }
 
 function ipgeo_from_xml($ip) {
@@ -1010,6 +1750,16 @@ function ipgeo_from_xml($ip) {
   else {
     return FALSE;
   }
+}
+
+function ajax_message_box($title, $text, $type){
+	
+	ctools_modal_render($title, $text);
+	
+	/*$output = array();
+	$output[] = ctools_modal_command_display($title, $text);
+	print ajax_render($output); 
+	exit;	*/
 }
 
 ?>

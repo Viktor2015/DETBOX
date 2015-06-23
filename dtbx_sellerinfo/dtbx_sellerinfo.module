@@ -36,37 +36,84 @@ function dtbx_sellerinfo_page($form, &$form_state, $sellerid)
 {
 	$form = array();
 	
-	$str_query = 'select * from t_user where user_id = ' . $sellerid;
-	$items = db_query($str_query)->fetchObject();    
+	
+	$qcompany = db_query('select c.*,
+								 la.*,
+								 aa.*
+						from t_company c
+						left join (select 	a.address_id as legal_address_id,
+											r.region_name as legal_region_name, 
+											ct.city_name as legal_city_name,
+											a.street_name as legal_street_name, 
+											a.house_number as legal_house_number												
+									  from 	t_address a,
+											t_region r,
+											t_city ct
+									  where a.region_id = r.region_id and
+											a.city_id = ct.city_id) la on la.legal_address_id = c.company_legal_address_id
+											  
+						left join (select 	a.address_id as actual_address_id,
+											r.region_name as actual_region_name, 
+											ct.city_name as actual_city_name,
+											a.street_name as actual_street_name, 
+											a.house_number as actual_house_number											
+									  from 	t_address a,
+											t_region r,
+											t_city ct
+									  where a.region_id = r.region_id and
+											a.city_id = ct.city_id) aa on aa.actual_address_id = c.company_actual_address_id
+						where c.company_id = :company_id', array(':company_id' => $sellerid))->fetchObject();
 	
 	
-	$surname = "";
-	$firstname = "";
-	$patronname = "";
 	$companyname = "";
-	$juraddress = "";
-	$realaddress = "";
-	$contact = "";
-	$profile = "Контакты";
-	$responce = "Отзывы";
+	$companyogrn = "";
+	$companyinn = "";
+	$companyboss = "";
+	$companybuh = "";
+	$companybank = "";
+	$companyla = "";
+	$companyaa = "";
+	$comapnyrating = 0;
+	
+	$fdealer = 0;
+	$fvin = 0;
+	$fonline = 0;
+	$frepair = 0;
+	$fretailing = 0;
+	$fwholesale = 0;
+	$fcourier = 0;
+	$fregion = 0;
+	
+	$profile = "Контакты:";
+	$responce = "Отзывы:";
 	
 	
-	if(count($items) > 0)
-	{
-		$surname = $items->user_surname;
-		$firstname = $items->user_name;
-		$patronname = $items->user_patronymic;
-		$companyname = $items->company_name;
-		$juraddress = $items->company_address;
-		$realaddress = $items->company_actual_address;
-		$contact = $items->company_contact;
-		//$persondata .= $items->USER_LOGIN;
+	if (is_object($qcompany) > 0) {
+		$companyname = $qcompany -> company_name;
+		$companyogrn = $qcompany -> company_ogrn;
+		$companyinn = $qcompany -> company_inn;
+		$companyboss = $qcompany -> company_boss;
+		$companybuh = $qcompany -> company_buh;
+		$companybank = $qcompany -> company_bank_details;
+		$companyla = $qcompany -> legal_region_name . ', ' . $qcompany -> legal_city_name . ', ' . $qcompany -> legal_street_name . ', ' . $qcompany -> legal_house_number;
+		$companyaa = $qcompany -> actual_region_name . ', ' . $qcompany -> actual_city_name . ', ' . $qcompany -> actual_street_name . ', ' . $qcompany -> actual_house_number;
+		$comapnyrating = $qcompany -> company_rating;
+		
+		$fdealer = $qcompany -> flag_dealer;
+		$fvin = $qcompany -> flag_in_vin;
+		$fonline = $qcompany -> flag_online_store;
+		$frepair = $qcompany -> flag_repair;
+		$fretailing = $qcompany -> flag_retailing;
+		$fwholesale = $qcompany -> flag_wholesale;
+		$fcourier = $qcompany -> flag_courier;
+		$fregion = $qcompany -> flag_send_region;
 	}
   
 //
   $form['profile'] = array(
     '#type' => 'fieldset', 
-    '#title' => t($profile), 
+    '#title' => '', 
+	
   ); 
  
 //
@@ -80,19 +127,69 @@ function dtbx_sellerinfo_page($form, &$form_state, $sellerid)
 		 ');
   */
   
-  $map = ('	<script type="text/javascript">showmap(\'' . $juraddress . '\')</script>
+  $map = ('	<script type="text/javascript">showmap(\'' . $companyaa . '\')</script>
 			<div id="map" style="width: 400px; height: 250px; border: 1px double black;"></div>');
 	
   //$map = ('	<div id="map" style="width: 400px; height: 250px; border: 1px double black;"></div>');
  
   //drupal_set_message($map, 'status') ;
-  $output = '
-		<table width=100%>
-		<tr><td style="vertical-align: top">Название компании</td><td style="vertical-align: top">' . $companyname . '</td><td rowspan=3> ' . $map . '</td></tr>
-		<tr><td style="vertical-align: top">Адрес компании</td><td style="vertical-align: top">' . $juraddress . '</td></tr>
-		<tr><td style="vertical-align: top">Контактное лицо</td><td style="vertical-align: top">' . $contact . '</td></tr>
-		</table>
-  ';
+  	$records = db_query('select ci.company_info_type_id,
+								ci.company_info_type_name
+						 from t_company_info_type ci
+						 order by ci.company_info_type_id');
+	
+	$cntrec = 2 + $records->rowCount();	
+	
+	$i = 0;
+	$star = '';
+			
+	while ($i++ < $comapnyrating) {
+		$star .= '<img src="sites\all\themes\detbox\icons\startgold@2x.png">&nbsp';
+	}
+			
+	$i = 0;
+	while ($i++ < (5 - $comapnyrating)) {
+		$star .= '<img src="sites\all\themes\detbox\icons\stargrey@2x.png">&nbsp';
+	}
+	
+	$form['title'] = array(
+		'#type' => 'value',
+		'#value' => $companyname . '&nbsp&nbsp' . $star
+	);
+	
+	$output = '
+		<table class="table-contact">
+		<tr><td class="head">Адрес компании</td><td>' . $companyaa . '</td><td rowspan=' . $cntrec .'> ' . $map . '</td></tr>';
+	
+	foreach($records as $rec) {
+		$output .= '<tr><td class="head">' . $rec->company_info_type_name . '</td><td>';
+		$qcontacts = db_query('select cil.company_info_value
+								 from t_company_info_link cil
+								where cil.company_info_type_id = :company_info_type_id and
+									  cil.company_id = :company_id',
+							  array(
+								':company_info_type_id' => $rec -> company_info_type_id,
+								':company_id' => $sellerid
+								)
+							  );
+		foreach ($qcontacts as $qcontact){
+			$output .= $qcontact-> company_info_value . '<br>';
+		}
+		$output .= '</td></tr>';
+	}		
+		
+	$output .= '<tr><td class="head">Дополнительно:</td><td>';
+
+	$output .= ($fdealer == 1) 		? 'Официальный дилер, ' 	: null;
+	$output .= ($fvin == 1) 		? 'Запросы по VIN, ' 		: null;
+	$output .= ($fonline == 1) 		? 'Есть интернет-магазин, '	: null;
+	$output .= ($frepair == 1) 		? 'Есть СТО, '				: null;
+	$output .= ($fretailing == 1) 	? 'Торговля в розницу, '	: null;
+	$output .= ($fwholesale == 1) 	? 'Торговля оптом, '		: null;
+	$output .= ($fcourier == 1) 	? 'Доставка курьером, '		: null;
+	$output .= ($fregion == 1) 		? 'Доставка в регионы, '	: null;
+
+	$output .= '</td></tr></table>';
   
   
   
@@ -102,54 +199,44 @@ function dtbx_sellerinfo_page($form, &$form_state, $sellerid)
   
   $form['responce'] = array(
     '#type' => 'fieldset', 
-    '#title' => t($responce), 
+    '#title' => '',
   );
-   
-   
-  if (dtbx_sellerinfo_access()) {
-	
+
+  $form['responce']['lreview'] = array(
+    '#type' => 'item', 
+    '#title' => t($responce),
+	'#prefix' => '<br><span class="lreview">',
+	'#suffix' => '</span>'
+  );
   
-	$form['responce']['responce_text'] = array(
-      '#type' => 'textarea',
-	  '#title' => t('Ваше мнение:'),      
-      '#rows' => 10,
-      '#cols' => 10,
-	  '#default_value' => '1', 
-      '#resizable' => TRUE,
-    );
-    
-	
-    $form['responce']['shopid'] = array(
-      '#type' => 'hidden',
-      '#value' =>  $items->user_id,
-    );
-	
-	$form['responce']['rating']= array(
-	  '#type' => 'radios',
-	  '#title' => t('рейтинг'),
-	  '#options' => array(t('1'), t('2'), t('3'), t('4'), t('5')),
-	  /*'#prefix' => '<div class="container-inline">',
-	  '#suffix' => '</div>',*/
-    );
-	
-    $form['responce']['submit'] = array(
-	  '#type' => 'submit', 
-	  '#value' => t('Добавить отзыв'), 
-	  '#submit' => array('dtbx_sellerinfo_submit'),
-    );
-  
-  } 
-    
-	$records = db_query("SELECT * 
-					  FROM t_review tr 
-					  WHERE tr.to_user_id = :uid
-					  order by review_date desc
-					  ", array(':uid' => $items->user_id));
+   
+   $records = db_query("select 	tr.review_id,
+								DATE_FORMAT(tr.review_date, '%d.%m.%Y %h:%i') as review_date,
+								tr.user_id,
+								tr.company_id,
+								tr.review_text,
+								tr.review_rating  
+						from t_review tr 
+						where tr.company_id = :company_id
+						order by tr.review_date desc
+					  ", array(':company_id' => $sellerid));
 					  
-	$output = '<div class="table-view search-page" style=" height: 150px; overflow: auto"><table><tr><th>Рейтинг</th><th>&nbsp;&nbsp;&nbsp;Дата</th><th>Сообщение</th></tr>';
+	$output = '<div class="table-view search-page" style="max-height: 196px; overflow: auto"><table><tr><th>Рейтинг</th><th>&nbsp;&nbsp;&nbsp;Дата</th><th>Сообщение</th></tr>';
 	foreach ($records as $rec) {
-	
-		$output .= ('<tr><td>' . $rec->review_rating . '</td><td>' . $rec->review_date . '</td><td>' . $rec->review_text . '</td></tr>');
+		
+		$i = 0;
+		$star = '';
+			
+		while ($i++ < $rec->review_rating) {
+			$star .= '<img src="sites\all\themes\detbox\icons\startgold.png">&nbsp';
+		}
+			
+		$i = 0;
+		while ($i++ < (5 - $rec->review_rating)) {
+			$star .= '<img src="sites\all\themes\detbox\icons\stargrey.png">&nbsp';
+		}
+		
+		$output .= ('<tr><td>' . $star . '</td><td>' . $rec->review_date . '</td><td>' . $rec->review_text . '</td></tr>');
 		
 	}
 	$output .= "</table></div>";
@@ -157,7 +244,85 @@ function dtbx_sellerinfo_page($form, &$form_state, $sellerid)
 	$form['responce']['table2'] = array(
 		'#markup' => $output
 	);
+   
+  if (dtbx_sellerinfo_access()) {
+	
   
+    $form['responce']['shopid'] = array(
+      '#type' => 'hidden',
+      '#value' =>  $sellerid,
+    );
+	
+	/*$form['responce']['rating']= array(
+	  '#type' => 'radios',
+	  '#title' => t('рейтинг'),
+	  '#options' => array(t('1'), t('2'), t('3'), t('4'), t('5')),
+	  /*'#prefix' => '<div class="container-inline">',
+	  '#suffix' => '</div>',*/
+    //);
+
+	$form['responce']['lrating']= array(
+	  '#type' => 'item',
+	  '#title' => 'Ваш отзыв',
+	  '#prefix' => '<span class="lyourreview"><br>',
+	  '#suffix' => '<br></span>'
+	  
+    );
+	
+	$form['responce']['rating'] = array(
+		'#prefix' => '<div class="container-inline">',
+		'#suffix' => '</div>'
+	);
+	
+	$form['responce']['rating']['label'] = array(
+	  '#type' => 'item',
+	  '#title' => 'Оценка:',
+	  '#prefix' => '<div class="lstarreview">',
+	  '#suffix' => '</div>'
+    );
+
+	$form['responce']['rating']['img'] = array(
+	  '#type' => 'item',
+	  '#title' => '	<img src="sites/all/themes/detbox/icons/stargrey.png" id="imgstar1">
+					<img src="sites/all/themes/detbox/icons/stargrey.png" id="imgstar2">
+					<img src="sites/all/themes/detbox/icons/stargrey.png" id="imgstar3">
+					<img src="sites/all/themes/detbox/icons/stargrey.png" id="imgstar4">
+					<img src="sites/all/themes/detbox/icons/stargrey.png" id="imgstar5">
+				',
+	  '#prefix' => '<div class="starreview">',
+	  '#suffix' => '</div>'
+    );
+	
+	$form['responce']['rating']['img']['#attached']['js'] = array(ctools_attach_js('selectstar', 'dtbx_sellerinfo', 'js'));
+	
+	$form['responce']['rating']['select'] = array(
+		'#type' => 'hidden',
+		'#default_value' => 0,
+		'#attributes' => array('id' => 'selectrating')
+	);
+
+
+	$form['responce']['responce_text'] = array(
+      '#type' => 'textarea',
+	  '#title' => t('Текст отзыва:'),      
+      '#rows' => 3,
+      '#cols' => 10,
+	  '#default_value' => '', 
+      '#resizable' => TRUE,
+	  '#prefix' => '<br>',
+    );
+	
+    $form['responce']['submit'] = array(
+	  '#type' => 'submit', 
+	  '#value' => t('Отправить'), 
+	  '#submit' => array('dtbx_sellerinfo_submit'),
+	  '#attributes' => array(
+			'class' => array('form-add-review'),
+		)	
+	);
+  
+  } 
+    	
   return $form;
 }
 
@@ -171,21 +336,20 @@ function dtbx_sellerinfo_access() {
   return ($user->uid > 0);
 }
 
-function dtbx_sellerinfo_submit($form, &$form_state)
-{
-  global $user;
-  db_query('INSERT INTO t_review (review_date, from_user_id, to_user_id, review_text, review_rating)
-			VALUES (:review_date, :from_user_id, :to_user_id, :review_text, :review_rating + 1)', 
- 			array(':review_date' => date("Y-m-d H:i:s", time()), 
-				  ':from_user_id' => $user->uid,
-   				  ':to_user_id' => $form_state['values']['shopid'],
+function dtbx_sellerinfo_submit($form, &$form_state) {
+	global $user;
+	$l_user = db_query('select * from t_user where uid = :uid', array(':uid' => $user->uid))->fetchObject();
+	db_query('INSERT INTO t_review (review_date, user_id, company_id, review_text, review_rating)
+			  VALUES (:review_date, :user_id, :company_id, :review_text, :review_rating)', 
+			  array(':review_date' => date("Y-m-d H:i:s", time()), 
+				  ':user_id' => $l_user->user_id,
+   				  ':company_id' => $form_state['values']['shopid'],
 				  ':review_text' => $form_state['values']['responce_text'],
-				  ':review_rating' => $form_state['values']['rating']));
-
-  drupal_set_message(t('Отзыв добавлен.'));
-  $form_state['rebuild'] = true;
-  cache_clear_all();					
-return $form;
+				  ':review_rating' => $form_state['values']['select']));
+	drupal_set_message(t('Отзыв добавлен.'), 'status');
+	//$form_state['rebuild'] = true;
+	//cache_clear_all();					
+	//return $form;
 }
 
 

@@ -1,0 +1,6 @@
+name = "Администрирование"
+description = Администрирование компаний
+core = 7.x
+version = 7.x-1.0
+files[] = dtbx_admincontrol.module
+package = DetBox

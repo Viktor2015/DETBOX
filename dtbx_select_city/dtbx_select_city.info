@@ -1,0 +1,6 @@
+name = "Выбор города"
+description = Выбор города
+core = 7.x
+version = 7.x-1.0
+files[] = dtbx_select_city.module
+package = DetBox

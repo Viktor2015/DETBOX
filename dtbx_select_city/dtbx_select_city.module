@@ -1,0 +1,300 @@
+<?php
+
+/**
+ * init().
+ */
+
+  
+function dtbx_select_city_init() {
+
+	static $already_added = FALSE;
+
+	if ($already_added) {
+		return;
+	}
+	
+//	ctools_add_js('auto-submit');
+  
+	$already_added = TRUE;
+}
+
+
+/**
+ * Implements hook_menu().
+ */
+ 
+function dtbx_select_city_menu() 
+{
+    $items['dtbx_select_city/%ctools_js'] = array(
+        'title' => 'Выберите свой город',
+        'access callback' => true,
+        'page callback' => 'dtbx_select_city',
+		'page arguments' => array(1, 2, 3, 4),		
+        'type' => MENU_CALLBACK,
+    );
+	
+    $items['dtbx_select_city/list/%ctools_js/%'] = array(
+        'title' => 'Выбор',
+        'access callback' => true,
+        'page callback' => 'dtbx_select_city_get_list',
+		'page arguments' => array(2, 3, 4, 5, 6, 7),
+		'delivery callback' => 'ajax_deliver',
+        'type' => MENU_CALLBACK,
+    );
+
+    $items['dtbx_select_city/select/%ctools_js/%'] = array(
+        'title' => 'Выбор',
+        'access callback' => true,
+        'page callback' => 'dtbx_select_city_select',
+		'page arguments' => array(2, 3, 4, 5, 6, 7),
+        'type' => MENU_CALLBACK,
+    );
+	
+	return $items;
+}
+
+function dtbx_select_city($js, $sel_region = '#form-ajax-region', $sel_regionid = '#regionid', $sel_cityid = '#cityid'){
+	if ($js) {
+		$form_state = array(
+			'title' => t('Выбор города'),
+			'ajax' => TRUE,
+			'sel_region' => $sel_region,
+			'sel_regionid' => $sel_regionid, 
+			'sel_cityid' => $sel_cityid
+		);
+		
+		$output = ctools_modal_form_wrapper('dtbx_select_city_page', $form_state);
+		if (!empty($form_state['executed'])) {
+			$output[] = ctools_modal_command_dismiss();
+		}
+		/*
+		if (!empty($form_state['executed'])) {
+			$output = array();
+			$output[] = ctools_modal_command_dismiss();
+			/*
+			if ($form_state['complete']) {	
+				$output[] = ctools_modal_command_dismiss();
+			} else  {
+				if ($form_state['cancel']) {
+					$output[] = ctools_modal_command_dismiss();
+				}
+			}
+		}*/	
+		
+		
+		print ajax_render($output); 
+		exit;
+		
+	} else{
+		$form = drupal_get_form('dtbx_select_city_page');
+	}
+	return $form;
+}
+
+function dtbx_select_city_page($form, &$form_state) {	
+/*
+	$form['search_city'] = array(
+		'#type' => 'textfield', 
+        '#size' => 100, 
+		'#maxlength' => 128,
+		'#weight' => 0,
+		'#prefix' => '<div><table><tr><td colspan=3>',
+		'#suffix' => '</td><tr>',
+		'#attributes' => array(
+			'placeholder' => array('Найти населенный пункт'),
+			'style' => array('width: 100%')
+			)		
+	);  */
+	
+	$sel_region = $form_state['sel_region'];
+	$sel_regionid =  $form_state['sel_regionid'];
+	$sel_cityid = $form_state['sel_cityid'];
+			
+	$form['search_city'] = array(
+		'#markup' => '', 
+		'#prefix' => '<div><table><tr><td colspan=3>',
+		'#suffix' => '</td><tr>',
+	);
+	
+	//Страны
+	$output = '<tr valign="top"><td width="10%"><div id="form-ajax-country" style=" height: 150px; overflow: auto"><ul>';
+
+	$result = db_query("select * 
+						from t_country 
+						where country_id in (248, 3159, 9908)
+						order by country_name");
+	
+	foreach ($result as $item){
+		$link = l($item -> country_name, 'dtbx_select_city/list/ajax/region/' . $item -> country_id . '/' . $sel_region . '/' . $sel_regionid . '/' . $sel_cityid, array('attributes' => array('class' => 'use-ajax')));
+		
+		$output .=  '<li>' . $link . '</li>';
+	}
+	
+	$output .= '</ul></div></td>';
+	
+	//Регионы
+	$output .= '<td width="20%"><div id="form-ajax-select-region" style=" height: 150px; overflow: auto">';
+	$output .= get_region_list(3159, $sel_region, $sel_regionid, $sel_cityid);	
+	$output .= '</div></td>';
+	
+	//Города
+	$output .= '<td width="20%"><div id="form-ajax-select-city" style=" height: 150px; overflow: auto">';
+	$output .= get_city_list(5191, $sel_region, $sel_regionid, $sel_cityid);
+	//$output .= 'Выберите регион';
+	$output .= '</div></td></tr></table></div><br>';
+		
+
+	$form['markup'] = array(
+//		'#prefix' => '<div id = "form-ajax-node-content">',
+//		'#suffix' => '</div>',
+		'#markup' => $output,
+		'#weight' => 10
+    );		
+	
+	
+	/*
+	$form['submit'] = array(
+		'#type' => 'submit', 
+		'#value' => t('Выбрать'), 
+		'#submit' => array('dtbx_select_city_submit'),
+	);
+	*/
+	
+	return $form;
+}
+
+function dtbx_select_city_get_list($js, $type_list, $sel_id, $sel_region, $sel_regionid, $sel_cityid)
+{
+	if ($js == 'ajax') {
+		
+		$commands = array();
+		
+		switch($type_list)
+		{
+			case "region": {
+				$html = get_region_list($sel_id, $sel_region, $sel_regionid, $sel_cityid);
+				$commands[] = ajax_command_html('#form-ajax-select-region', $html);
+				$commands[] = ajax_command_html('#form-ajax-select-city', 'Выберите регион');
+				break;
+			}
+			
+			case "city": {
+				$html = get_city_list($sel_id, $sel_region, $sel_regionid, $sel_cityid);
+				$commands[] = ajax_command_html('#form-ajax-select-city', $html);
+				break;
+			}	
+		}
+		return array(
+		'#type' => 'ajax',
+		'#commands' => $commands,
+		);
+	}
+}
+
+function dtbx_select_city_select($js, $regionid, $cityid, $sel_region, $sel_regionid, $sel_cityid){
+	
+	$result = db_query('select 	cn.country_id,
+								cn.country_name,
+								rg.region_id,
+								rg.region_name,
+								ct.city_id,
+								ct.city_name
+						from t_region rg
+						inner join t_country cn on cn.country_id = rg.country_id
+						left join	t_city ct on ct.region_id = rg.region_id and								
+								 		 	     ct.city_id = :city_id
+						where rg.country_id = cn.country_id and
+							  rg.region_id = :region_id',
+						 array(
+							':region_id' => $regionid,
+							':city_id' => $cityid
+						 ))->fetchObject();
+			 
+	$html = $result->country_name . ', ' . $result->region_name . ', ' . $result->city_name;
+	
+	$addressbutton = ctools_modal_text_button($html, 'dtbx_select_city/ajax', '', 'ctools-use-modal-processed ctools-modal-modal-popup-medium');
+	
+	$output = array();
+	$output[] = ctools_modal_command_dismiss();
+	//$output[] = ajax_command_html($sel_region, $addressbutton);
+	$output[] = ctools_ajax_command_attr($sel_region, 'value', $html);
+	$output[] = ctools_ajax_command_attr($sel_regionid, 'value', $regionid);
+	$output[] = ctools_ajax_command_attr($sel_cityid, 'value', $cityid);
+	
+	print ajax_render($output); 
+	exit;
+}
+
+
+function get_region_list($country_id, $sel_region, $sel_regionid, $sel_cityid){
+	//Регионы
+	
+	$output = '<ul>';
+
+	$result = db_query("select * 
+						from t_region 
+						where country_id = :country_id
+						order by region_name",
+						array(':country_id' => $country_id)
+						);
+	
+	foreach ($result as $item){
+		$link = l($item -> region_name, 'dtbx_select_city/list/ajax/city/' . $item -> region_id . '/' . $sel_region . '/' . $sel_regionid . '/' . $sel_cityid, array('attributes' => array('class' => 'use-ajax')));
+		
+		$output .=  '<li>' . $link . '</li>';
+	}
+	
+	$output .= '</ul></div>';
+	
+	return $output; 
+}
+
+function get_city_list($region_id, $sel_region, $sel_regionid, $sel_cityid){
+	//Города
+	
+	$output = '<ul>';
+
+	$result = db_query("select -1 as city_id,
+							   'По всем ...' as city_name,
+							   :region_id as region_id,
+							   0 as idx
+						from dual
+						union all
+						select c.city_id,
+							   c.city_name,
+							   c.region_id,
+							   1 as idx
+						from t_city c
+						where region_id = :region_id
+						order by idx, city_name",
+						array(':region_id' => $region_id)
+						);
+	
+	foreach ($result as $item){
+		
+		$link = l($item -> city_name, 'dtbx_select_city/select/ajax/' . $item -> region_id . '/' . $item -> city_id . '/' . $sel_region . '/' . $sel_regionid . '/' . $sel_cityid, 
+				  array('attributes' => array(
+					'class' => 'use-ajax'
+					))
+				);
+		
+//		$link = ctools_ajax_text_button($item -> city_name, '#');
+		
+		$output .=  '<li>' . $link . '</li>';
+	}
+	
+	$output .= '</ul>';
+	
+	return $output;
+}
+
+
+
+function dtbx_select_city_submit($form, &$form_state)
+{
+  //$form_state['complete'] = TRUE;	
+  //return $form;
+}
+
+
+?>
