@@ -19,7 +19,8 @@ function dtbx_admincontrol_page($form, &$form_state)
 	global $user;
 	module_load_include('pages.inc', 'user');
 
-	
+	if($user->uid == 1)
+	{
 		$form['company']['table'] = array(
 			'#tree' => TRUE,
 			'#theme' => 'dtbx_privateroom_table',
@@ -29,10 +30,24 @@ function dtbx_admincontrol_page($form, &$form_state)
 	
 		$form['company']['table']['header'] = array(
 			'#type' => 'value',
-			'#value' => array('', 'ID', 'Фирма', 'Адрес', 'ИНН', 'Активен', 'Активен до', ''),
+			'#value' => array('', 'ID', 'Фирма', 'Адрес', 'ОГРН', 'ИНН', 'Активен', 'Активен до', ''),
 		);
   
-		$qcompany = db_query("select c.*, aa.* from t_company c
+		$qcompany = db_query("select c.*, la.*, aa.* from t_company c
+		
+						left join (select 	a.address_id as legal_address_id,
+											r.region_name as legal_region_name, 
+											ct.city_name as legal_city_name,
+											a.street_name as legal_street_name, 
+											a.house_number as legal_house_number,
+											a.region_id as legal_region_id,
+											a.city_id as legal_city_id
+									  from 	t_address a,
+											t_region r,
+											t_city ct
+									  where a.region_id = r.region_id and
+											a.city_id = ct.city_id) la on la.legal_address_id = c.company_legal_address_id
+		
 						left join (select 	a.address_id as actual_address_id,
 											r.region_name as actual_region_name, 
 											ct.city_name as actual_city_name,
@@ -45,8 +60,66 @@ function dtbx_admincontrol_page($form, &$form_state)
 											t_city ct
 									  where a.region_id = r.region_id and
 											a.city_id = ct.city_id) aa on aa.actual_address_id = c.company_actual_address_id");
+											
  
+		
 		foreach ($qcompany as $rec) {
+		
+				$address = $rec->actual_region_name . (($rec->actual_city_name != "") ? (', ' . $rec->actual_city_name) : '') . 
+							(($rec->actual_street_name != "") ? ('<br>' . $rec->actual_street_name) : '') . 
+							(($rec->actual_house_number != "") ? (', ' . $rec->actual_house_number) : '');
+							
+				$laddress = $rec->legal_region_name . (($rec->legal_city_name != "") ? (', ' . $rec->legal_city_name) : '') . 
+							(($rec->legal_street_name != "") ? ('<br>' . $rec->legal_street_name) : '') . 
+							(($rec->legal_house_number != "") ? (', ' . $rec->legal_house_number) : '');			
+							
+				$extservice = "";
+				if($rec->flag_dealer) $extservice .= "Официальный дилер";
+				if($rec->flag_in_vin){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "Запросы по VIN";
+				}
+				if($rec->flag_online_store){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "Интернет магазин";
+				}
+				if($rec->flag_repair){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "С Т О";
+				}
+				if($rec->flag_retailing){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "Торговля в розницу";
+				}
+				if($rec->flag_wholesale){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "Торговля оптом";
+				}
+				if($rec->flag_courier){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "Доставка курьером";
+				}
+				if($rec->flag_send_region){
+					if($extservice != "") $extservice .= "<br>";
+					$extservice .= "Доставка в регионы";
+				}
+				
+				
+				$compinfo = "";
+				$query = "SELECT cit.company_info_type_name , cil.company_info_value
+							FROM t_company_info_type cit
+							LEFT JOIN t_company_info_link cil
+							ON cit.company_info_type_id = cil.company_info_type_id where cil.company_id = " . $rec->company_id;
+				
+				$company_infos = db_query($query);
+				$count = 0;
+				foreach ($company_infos as $item) {
+					$break = ($count != 0) ? "<br>" : "";
+					$compinfo .= $break . $item->company_info_type_name . ": " . $item->company_info_value;
+					$count++;
+				}
+				
+		
 				$form['company']['table']['data'][$rec->company_id][] = array(
 					'#markup' => '',
 					'#attributes' => array('class' => array('first'))
@@ -54,16 +127,31 @@ function dtbx_admincontrol_page($form, &$form_state)
 				$form['company']['table']['data'][$rec->company_id]['company_id'] = array(
 					'#markup' => $rec->company_id,
 				);
+				
 				$form['company']['table']['data'][$rec->company_id][] = array(
-					'#markup' => $rec->company_name,
+					'#markup' => '<div><a href="#"  onclick="showsellerdata(\'' . 
+							$rec->company_name . '\',\'' . 
+							$rec->company_ogrn . '\',\'' . 
+							$rec->company_inn . '\',\'' . 
+							$address . '\',\'' . 
+							$laddress . '\',\'' . 
+							$rec->company_boss . '\',\'' . 
+							$rec->company_buh . '\',\'' . 
+							$rec->company_bank_details . '\',\'' . 
+							$extservice . '\',\'' . 
+							$compinfo .
+							'\')">' . 
+							(($rec->company_name != "") ? $rec->company_name : "noname") . '</a></div>',
 				);
 				
-				$address = $rec->actual_region_name . (($rec->actual_city_name != "") ? (', ' . $rec->actual_city_name) : '') . 
-							(($rec->actual_street_name != "") ? ('<br>' . $rec->actual_street_name) : '') . 
-							(($rec->actual_house_number != "") ? (' ' . $rec->actual_house_number) : '');
+				
 				
 				$form['company']['table']['data'][$rec->company_id][] = array(
 					'#markup' => $address,
+				);
+				
+				$form['company']['table']['data'][$rec->company_id][] = array(
+					'#markup' => $rec->company_ogrn,
 				);
 				
 				$form['company']['table']['data'][$rec->company_id][] = array(
@@ -88,6 +176,52 @@ function dtbx_admincontrol_page($form, &$form_state)
 			'#value' => t('Сохранить'),
 			'#submit' => array('dtbx_admincontrol_submit'),	
 		);
+		
+		$markup = '<script type="text/javascript">
+					function showsellerdata(name, ogrn, inn, address, laddress, boss, buch, bankreq, extras, compinfo){
+						document.getElementById("fullscreen").style.display = "block";
+						document.getElementById("sellername").innerHTML = name;
+						document.getElementById("sellerogrn").innerHTML = ogrn;
+						document.getElementById("sellerinn").innerHTML = inn;
+						document.getElementById("selleraddress").innerHTML = address;
+						document.getElementById("sellerladdress").innerHTML = laddress;
+						document.getElementById("sellerboss").innerHTML = boss;
+						document.getElementById("sellerbuch").innerHTML = buch;
+						document.getElementById("sellerbankreq").innerHTML = bankreq;
+						document.getElementById("extras").innerHTML = extras;
+						document.getElementById("compinfo").innerHTML = compinfo;
+					}
+					</script>
+					<div id="fullscreen" style="display: none;z-index: 1000; background-color: #000000; opacity: 0.8; position: fixed; width: 100%; height: 100%; top: 0px; left: 0px;">
+						<div style="z-index: 1001; background-color: #ffffff; position: fixed; width: 80%; height: 80%; opacity: 10; top: 10%; left: 10%; color:black; font-size: 100%;font-weight: bold;">
+							<div align="right" style="width:100%;">
+								<div onclick="document.getElementById(\'fullscreen\').style.display = \'none\';" style="width:10px;cursor:default;top:-10px;margin-right:5px;">x</div>
+							</div>
+							<div style="margin:20px;">
+							<table>
+								<tr><td>Компания:</td><td><div id="sellername"> </div></td><td width="20px"></td><td><u>Дополнительные услуги:</u></td></tr>
+								<tr><td>ОГРН:</td><td><div id="sellerogrn"> </div></td><td></td><td rowspan="7"><div id="extras"></div></td></tr>
+								<tr><td>ИНН:</td><td><div id="sellerinn"> </div></td></tr>
+								<tr><td>Фактический<br>aдрес:</td><td><div id="selleraddress"> </div></td></tr>
+								<tr><td>Юридический<br>aдрес:</td><td><div id="sellerladdress"> </div></td></tr>
+								<tr><td>Директор:</td><td><div id="sellerboss"> </div></td></tr>
+								<tr><td>Бухгалтер:</td><td><div id="sellerbuch"> </div></td></tr>
+								<tr><td>Банк. реквизиты:</td><td><div id="sellerbankreq"> </div></td></tr>
+								<tr><td>&nbsp;</td></tr>
+								<tr><td colspan="2"><div id="compinfo"> </div></td></tr>
+							</table></div>
+						</div></div>';
+		
+		$form['fullscreen'] = array(
+					'#markup' => $markup,
+				);
+	}
+	else
+	{
+		$form['notadmin'] = array(
+					'#markup' => 'У вас нет прав администратора.',
+		);
+	}
 	return $form;
 }
 
